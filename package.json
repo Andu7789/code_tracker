@@ -1,0 +1,12 @@
+{
+  "name": "code-tracer-standalone",
+  "version": "1.0.0",
+  "description": "Non-invasive code tracer — connects to Chrome via CDP and visualises call paths as a draggable spider graph",
+  "main": "tracer.js",
+  "scripts": {
+    "start": "node tracer.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}

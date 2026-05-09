@@ -4,6 +4,11 @@ const WebSocket = require('ws');
 const CHROME_PORT = 9222;
 const TRACER_PORT = 7923;
 
+// URLs containing any of these patterns will be captured as API nodes.
+// Change to match your backend — e.g. ['.ashx', '/api/'] for a C# backend,
+// or ['post_data'] if your app posts to PHP/ASHX files with that param.
+const CAPTURE_URL_PATTERNS = ['supabase'];
+
 let canvasClients = new Set();
 let recording = false;
 let nodeCounter = 0;
@@ -12,6 +17,7 @@ let startTime = 0;
 let callStack = [];
 let cdpWs = null;
 let cmdId = 1;
+let pendingCallbacks = {};
 
 // ── WebSocket server for canvas.html ──────────────────────────────────────────
 const wss = new WebSocket.Server({ port: TRACER_PORT });
@@ -58,9 +64,12 @@ function getChromeTabs() {
   });
 }
 
-function cdpSend(method, params = {}) {
-  if (cdpWs && cdpWs.readyState === WebSocket.OPEN)
-    cdpWs.send(JSON.stringify({ id: cmdId++, method, params }));
+function cdpSend(method, params = {}, cb = null) {
+  if (cdpWs && cdpWs.readyState === WebSocket.OPEN) {
+    const id = cmdId++;
+    if (cb) pendingCallbacks[id] = cb;
+    cdpWs.send(JSON.stringify({ id, method, params }));
+  }
 }
 
 // ── Start recording ───────────────────────────────────────────────────────────
@@ -70,12 +79,10 @@ async function startRecording() {
   try {
     const tabs = await getChromeTabs();
 
-    // Print all candidate tabs so the user can see what was found
     const candidates = tabs.filter(t => t.type === 'page' && t.webSocketDebuggerUrl);
     console.log('[Tracer] Available page tabs:');
     candidates.forEach(t => console.log('  ', t.url));
 
-    // Prefer 127.0.0.1 tabs first (Live Server default), then localhost
     const target =
       candidates.find(t => t.url?.includes('127.0.0.1')) ||
       candidates.find(t => t.url?.includes('localhost') && !t.url?.includes('localhost:' + TRACER_PORT));
@@ -96,10 +103,13 @@ async function startRecording() {
       sessionId = Date.now().toString(36) + '_';
       startTime = Date.now();
       callStack = [];
+      pendingCallbacks = {};
 
       cdpSend('Runtime.enable');
       cdpSend('Network.enable');
       cdpSend('Page.enable');
+      cdpSend('Profiler.enable');
+      cdpSend('Profiler.setSamplingInterval', { interval: 100 });
       injectClickTracker();
 
       broadcast({ type: 'recording', value: true, sessionId });
@@ -171,7 +181,7 @@ function injectClickTracker() {
   });
 }
 
-// ── Clean Supabase URL ────────────────────────────────────────────────────────
+// ── Clean URL for display ─────────────────────────────────────────────────────
 function cleanUrl(url) {
   try {
     const u = new URL(url);
@@ -182,8 +192,16 @@ function cleanUrl(url) {
   } catch { return url.split('/').pop() || url; }
 }
 
-// ── Handle CDP events ─────────────────────────────────────────────────────────
+// ── Handle CDP events & command responses ─────────────────────────────────────
 function handleCDPMessage(msg) {
+  // Dispatch command responses to registered callbacks
+  if (msg.id !== undefined && pendingCallbacks[msg.id]) {
+    const cb = pendingCallbacks[msg.id];
+    delete pendingCallbacks[msg.id];
+    cb(msg.result);
+    return;
+  }
+
   const { method, params } = msg;
 
   if (method === 'Page.loadEventFired') {
@@ -196,14 +214,15 @@ function handleCDPMessage(msg) {
   if (method === 'Network.requestWillBeSent') {
     const url = params?.request?.url ?? '';
     const reqMethod = params?.request?.method ?? 'GET';
-    if (!url.includes('supabase')) return;
+    const matchesPattern = CAPTURE_URL_PATTERNS.some(p => url.includes(p));
+    if (!matchesPattern) return;
     if (url.match(/\.(png|jpg|jpeg|gif|webp|svg|ico)(\?|$)/i)) return;
     if (reqMethod === 'OPTIONS') return;
 
     const nodeId = sessionId + (++nodeCounter);
     const parentId = callStack[callStack.length - 1];
     emitNode({ id: nodeId, kind: 'ajax', label: reqMethod + ' ' + cleanUrl(url),
-               file: 'supabase', timestamp: Date.now() - startTime, parentId });
+               file: 'api', timestamp: Date.now() - startTime, parentId });
     if (parentId) emitEdge({ id: 'e' + nodeId, source: parentId, target: nodeId, kind: 'ajax' });
     callStack.push(nodeId);
     setTimeout(() => { callStack = callStack.filter(x => x !== nodeId); }, 3000);
@@ -224,12 +243,60 @@ function handleCDPMessage(msg) {
     const label = text.slice(colonIdx + 1) || 'unknown';
 
     callStack = []; // clicks are always root nodes
-    const nodeId = sessionId + (++nodeCounter);
-    emitNode({ id: nodeId, kind: 'click', label, file: 'browser',
+    const clickId = sessionId + (++nodeCounter);
+    emitNode({ id: clickId, kind: 'click', label, file: 'browser',
                timestamp: Date.now() - startTime });
-    callStack.push(nodeId);
-    setTimeout(() => { callStack = callStack.filter(x => x !== nodeId); }, 3000);
+    callStack.push(clickId);
+
+    // Phase 4: sample JS call stack for ~400ms after the click
+    cdpSend('Profiler.start');
+    setTimeout(() => {
+      cdpSend('Profiler.stop', {}, (result) => {
+        if (result?.profile) parseProfile(result.profile, clickId);
+      });
+      callStack = callStack.filter(x => x !== clickId);
+    }, 400);
   }
+}
+
+// ── Parse CPU profile → emit JS function nodes ────────────────────────────────
+function parseProfile(profile, parentClickId) {
+  const nodes = profile.nodes || [];
+  const seen = new Set();
+  let emitted = 0;
+
+  const SKIP_FN = new Set(['(anonymous)', '(program)', '(idle)', '(garbage collector)', '']);
+  const SKIP_URL = ['chrome', 'extension', 'node_modules', 'webpack', 'tracer.js', 'canvas.html'];
+
+  nodes.forEach(node => {
+    if (emitted >= 15) return;
+    const { functionName, url, lineNumber } = node.callFrame;
+    if (!url || SKIP_URL.some(s => url.includes(s))) return;
+    if (SKIP_FN.has(functionName)) return;
+
+    const key = functionName + '|' + url + '|' + lineNumber;
+    if (seen.has(key)) return;
+    seen.add(key);
+    emitted++;
+
+    const fileName = url.split('/').pop().split('?')[0] || url;
+    const line = lineNumber + 1;
+    console.log(`[Tracer] JS fn: ${functionName} @ ${fileName}:${line}`);
+
+    const nodeId = sessionId + (++nodeCounter);
+    emitNode({
+      id: nodeId,
+      kind: 'js',
+      label: functionName,
+      file: fileName + ':' + line,
+      timestamp: Date.now() - startTime,
+      parentId: parentClickId,
+    });
+    emitEdge({ id: 'e' + nodeId, source: parentClickId, target: nodeId, kind: 'js' });
+  });
+
+  if (emitted > 0) console.log(`[Tracer] Emitted ${emitted} JS function node(s) for click`);
+  else console.log('[Tracer] No user JS functions captured (try clicking a button that does more work)');
 }
 
 function emitNode(n) { broadcast({ type: 'addNode', node: n }); }

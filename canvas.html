@@ -247,13 +247,20 @@ function addToGroup(node, gid) {
   const childBottom = y + 70 + GAP;
   if (g.col !== undefined) colHeights[g.col] = Math.max(colHeights[g.col], childBottom);
   const nc = document.getElementById('nc-' + gid);
-  if (nc) { const n = g.children.length; nc.textContent = n + ' API call' + (n !== 1 ? 's' : ''); }
+  if (nc) {
+    const apiN = g.children.filter(cid => nodeData[cid]?.kind === 'ajax').length;
+    const jsN  = g.children.filter(cid => nodeData[cid]?.kind === 'js').length;
+    const parts = [];
+    if (apiN) parts.push(apiN + ' API call' + (apiN !== 1 ? 's' : ''));
+    if (jsN)  parts.push(jsN  + ' JS fn'    + (jsN  !== 1 ? 's' : ''));
+    nc.textContent = parts.join(' · ') || '';
+  }
 }
 
 // ── Standalone node ───────────────────────────────────────────────────────────
 function makeStandalone(node) {
   const x = GX + (standaloneCount % COLS) * COL_W;
-  const y = GY + 700 + Math.floor(standaloneCount / COLS) * ROW_H;
+  const y = GY + 700 + Math.floor(standaloneCount / COLS) * 100;
   standaloneCount++;
   const el = makeEl(node, x, y);
   el.addEventListener('mousedown', e => {
@@ -271,8 +278,9 @@ function makeEl(node, x, y) {
   el.id = 'n-' + node.id;
   el.style.left = x + 'px';
   el.style.top  = y + 'px';
+  const icon = node.kind === 'ajax' ? '⚡' : node.kind === 'js' ? 'ƒ' : '●';
   el.innerHTML =
-    '<div class="nk">' + (node.kind === 'ajax' ? '⚡' : '◆') + ' ' + esc(node.file || '') + '</div>' +
+    '<div class="nk">' + icon + ' ' + esc(node.file || '') + '</div>' +
     '<div class="nl">' + esc(node.label) + '</div>' +
     '<div class="nt">+' + node.timestamp + 'ms</div>';
   return el;

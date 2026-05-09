@@ -15,6 +15,7 @@ let nodeCounter = 0;
 let sessionId = 'init';
 let startTime = 0;
 let callStack = [];
+let requestMap = {}; // CDP requestId → nodeId, for correlating responses
 let cdpWs = null;
 let cmdId = 1;
 let pendingCallbacks = {};
@@ -30,7 +31,7 @@ wss.on('connection', (client) => {
   client.on('message', (raw) => {
     try {
       const msg = JSON.parse(raw);
-      if (msg.type === 'startRecording') startRecording();
+      if (msg.type === 'startRecording') startRecording(msg.port || null);
       if (msg.type === 'stopRecording')  stopRecording();
       if (msg.type === 'clearGraph')     broadcast({ type: 'clearGraph' });
     } catch (e) { console.error('[Tracer] bad message', e.message); }
@@ -73,7 +74,7 @@ function cdpSend(method, params = {}, cb = null) {
 }
 
 // ── Start recording ───────────────────────────────────────────────────────────
-async function startRecording() {
+async function startRecording(port = null) {
   if (recording) return;
 
   try {
@@ -83,9 +84,10 @@ async function startRecording() {
     console.log('[Tracer] Available page tabs:');
     candidates.forEach(t => console.log('  ', t.url));
 
-    const target =
-      candidates.find(t => t.url?.includes('127.0.0.1')) ||
-      candidates.find(t => t.url?.includes('localhost') && !t.url?.includes('localhost:' + TRACER_PORT));
+    const target = port
+      ? candidates.find(t => t.url?.includes(':' + port))
+      : candidates.find(t => t.url?.includes('127.0.0.1')) ||
+        candidates.find(t => t.url?.includes('localhost') && !t.url?.includes('localhost:' + TRACER_PORT));
 
     if (!target) {
       broadcast({ type: 'error', message: 'No app tab found. Open your app in Chrome first.' });
@@ -103,6 +105,7 @@ async function startRecording() {
       sessionId = Date.now().toString(36) + '_';
       startTime = Date.now();
       callStack = [];
+      requestMap = {};
       pendingCallbacks = {};
 
       cdpSend('Runtime.enable');
@@ -142,6 +145,7 @@ async function startRecording() {
 // ── Stop recording ────────────────────────────────────────────────────────────
 function stopRecording() {
   recording = false;
+  requestMap = {};
   if (cdpWs) { try { cdpWs.close(); } catch {} cdpWs = null; }
   broadcast({ type: 'recording', value: false });
   broadcast({ type: 'status', message: 'Stopped — drag nodes to arrange' });
@@ -207,6 +211,7 @@ function handleCDPMessage(msg) {
   if (method === 'Page.loadEventFired') {
     console.log('[Tracer] Page reloaded — re-injecting');
     callStack = [];
+    requestMap = {};
     injectClickTracker();
     return;
   }
@@ -224,8 +229,23 @@ function handleCDPMessage(msg) {
     emitNode({ id: nodeId, kind: 'ajax', label: reqMethod + ' ' + cleanUrl(url),
                file: 'api', timestamp: Date.now() - startTime, parentId });
     if (parentId) emitEdge({ id: 'e' + nodeId, source: parentId, target: nodeId, kind: 'ajax' });
+    requestMap[params.requestId] = nodeId;
+    if (params.request.postData)
+      broadcast({ type: 'nodePayload', id: nodeId, payload: params.request.postData });
     callStack.push(nodeId);
     setTimeout(() => { callStack = callStack.filter(x => x !== nodeId); }, 3000);
+    return;
+  }
+
+  if (method === 'Network.loadingFinished') {
+    const nodeId = requestMap[params.requestId];
+    if (!nodeId) return;
+    delete requestMap[params.requestId];
+    cdpSend('Network.getResponseBody', { requestId: params.requestId }, (result) => {
+      if (result?.body) {
+        broadcast({ type: 'nodeResponse', id: nodeId, body: result.body, base64: !!result.base64Encoded });
+      }
+    });
     return;
   }
 
@@ -259,41 +279,53 @@ function handleCDPMessage(msg) {
   }
 }
 
-// ── Parse CPU profile → emit JS function nodes ────────────────────────────────
+// ── Parse CPU profile → emit JS function nodes (preserving call hierarchy) ────
 function parseProfile(profile, parentClickId) {
   const nodes = profile.nodes || [];
-  const seen = new Set();
-  let emitted = 0;
+  if (nodes.length === 0) return;
+
+  const nodeMap = {};
+  nodes.forEach(n => { nodeMap[n.id] = n; });
 
   const SKIP_FN = new Set(['(anonymous)', '(program)', '(idle)', '(garbage collector)', '']);
   const SKIP_URL = ['chrome', 'extension', 'node_modules', 'webpack', 'tracer.js', 'canvas.html'];
 
-  nodes.forEach(node => {
-    if (emitted >= 15) return;
-    const { functionName, url, lineNumber } = node.callFrame;
-    if (!url || SKIP_URL.some(s => url.includes(s))) return;
-    if (SKIP_FN.has(functionName)) return;
+  const seenMap = new Map(); // profile key → canvas nodeId (so children attach correctly)
+  let emitted = 0;
 
-    const key = functionName + '|' + url + '|' + lineNumber;
-    if (seen.has(key)) return;
-    seen.add(key);
-    emitted++;
+  function traverse(profNodeId, parentCanvasId) {
+    if (emitted >= 20) return;
+    const profNode = nodeMap[profNodeId];
+    if (!profNode) return;
 
-    const fileName = url.split('/').pop().split('?')[0] || url;
-    const line = lineNumber + 1;
-    console.log(`[Tracer] JS fn: ${functionName} @ ${fileName}:${line}`);
+    const { functionName, url, lineNumber } = profNode.callFrame;
+    const isUser = url && !SKIP_URL.some(s => url.includes(s)) && !SKIP_FN.has(functionName);
 
-    const nodeId = sessionId + (++nodeCounter);
-    emitNode({
-      id: nodeId,
-      kind: 'js',
-      label: functionName,
-      file: fileName + ':' + line,
-      timestamp: Date.now() - startTime,
-      parentId: parentClickId,
-    });
-    emitEdge({ id: 'e' + nodeId, source: parentClickId, target: nodeId, kind: 'js' });
-  });
+    let nextParent = parentCanvasId;
+
+    if (isUser) {
+      const key = functionName + '|' + url + '|' + lineNumber;
+      if (seenMap.has(key)) {
+        nextParent = seenMap.get(key); // attach children to existing node
+      } else {
+        emitted++;
+        const fileName = url.split('/').pop().split('?')[0] || url;
+        const line = lineNumber + 1;
+        console.log(`[Tracer] JS fn: ${functionName} @ ${fileName}:${line} (parent: ${parentCanvasId})`);
+        const nodeId = sessionId + (++nodeCounter);
+        seenMap.set(key, nodeId);
+        emitNode({ id: nodeId, kind: 'js', label: functionName,
+                   file: fileName + ':' + line, timestamp: Date.now() - startTime,
+                   parentId: parentCanvasId });
+        emitEdge({ id: 'e' + nodeId, source: parentCanvasId, target: nodeId, kind: 'js' });
+        nextParent = nodeId;
+      }
+    }
+
+    (profNode.children || []).forEach(cid => traverse(cid, nextParent));
+  }
+
+  traverse(nodes[0].id, parentClickId);
 
   if (emitted > 0) console.log(`[Tracer] Emitted ${emitted} JS function node(s) for click`);
   else console.log('[Tracer] No user JS functions captured (try clicking a button that does more work)');

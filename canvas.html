@@ -16,10 +16,14 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
 .dot{width:8px;height:8px;border-radius:50%;background:#444;display:inline-block;margin-right:6px;flex-shrink:0}
 .dot.on{background:#4caf50}
 #status{margin-left:auto;font-size:11px;color:#888}
+#port-wrap{display:flex;align-items:center;gap:5px;font-size:11px;color:#555}
+#port-input{width:60px;font-size:11px;padding:3px 7px;border-radius:5px;border:1px solid #333;background:#0d1122;color:#ddd;outline:none;text-align:center}
+#port-input:focus{border-color:#555}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 
 #wrap{flex:1;position:relative;overflow:auto}
-#canvas{position:absolute;top:0;left:0;min-width:100%;min-height:100%}
+#canvas{position:absolute;top:0;left:0;min-width:100%;min-height:100%;cursor:grab}
+#canvas:active{cursor:grabbing}
 #edge-svg{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
 
 .node{position:absolute;border-radius:8px;padding:10px 14px;cursor:grab;min-width:170px;max-width:230px;box-shadow:0 2px 8px rgba(0,0,0,.5);user-select:none}
@@ -27,7 +31,8 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
 .node.click{background:#1e1700;border:2px solid #f0b030;min-width:200px}
 .node.ajax{background:#140d30;border:1px solid #7f77dd}
 .node.js{background:#0d2b1e;border:1px solid #1d9e75}
-.nk{font-size:9px;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.nk{font-size:9px;color:#667;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.nline{color:#7ecfb0;font-weight:700;font-size:10px}
 .nl{font-size:13px;font-weight:600;color:#e0e0e0;word-break:break-word;line-height:1.3}
 .nt{font-size:9px;color:#444;margin-top:3px}
 .nh{display:flex;justify-content:space-between;align-items:flex-start;gap:6px}
@@ -45,6 +50,33 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
 #empty code{background:#222;padding:2px 6px;border-radius:4px;color:#e94560;font-size:12px}
 
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#c0392b;color:#fff;padding:9px 20px;border-radius:8px;font-size:13px;display:none;z-index:999;max-width:500px;text-align:center}
+
+.fbar{display:flex;align-items:center;gap:6px;padding:5px 16px;background:#12192e;border-bottom:1px solid #0f3460;flex-shrink:0}
+.ft{font-size:11px;padding:3px 10px;border-radius:5px;border:1px solid #333;background:#1a1a3e;color:#888;cursor:pointer;display:flex;align-items:center;gap:5px}
+.ft.off{opacity:.35;text-decoration:line-through}
+.fsep{width:1px;height:14px;background:#333;margin:0 4px}
+#fsearch{font-size:11px;padding:4px 10px;border-radius:5px;border:1px solid #333;background:#0d1122;color:#ddd;width:160px;outline:none}
+#fsearch:focus{border-color:#555}
+
+.nbtn-row{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap}
+.nbtn{font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #7f77dd55;background:#140d30;color:#8888cc;cursor:pointer}
+.nbtn:hover{border-color:#7f77dd;color:#c0c0ff}
+
+#modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1000}
+#modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(720px,92vw);max-height:82vh;background:#1a1a2e;border:1px solid #0f3460;border-radius:10px;z-index:1001;flex-direction:column;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.6)}
+#modal-head{display:flex;align-items:center;gap:10px;padding:10px 16px;background:#16213e;border-bottom:1px solid #0f3460;flex-shrink:0}
+#modal-label{font-size:13px;font-weight:600;color:#e0e0e0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+#modal-close{background:none;border:none;color:#666;cursor:pointer;font-size:18px;padding:0 2px;line-height:1;flex-shrink:0}
+#modal-close:hover{color:#fff}
+.mtabs{display:flex;align-items:center;gap:4px;padding:8px 12px;background:#16213e;border-bottom:1px solid #0f3460;flex-shrink:0}
+.mtab{font-size:11px;padding:4px 12px;border-radius:5px;border:1px solid #333;background:none;color:#555;cursor:pointer}
+.mtab.active{background:#7f77dd22;border-color:#7f77dd;color:#a0a0ff}
+#modal-size{margin-left:auto;font-size:11px;color:#555}
+.mact{font-size:11px;padding:3px 10px;border-radius:4px;border:1px solid #333;background:#1a1a3e;color:#aaa;cursor:pointer;margin-left:6px}
+.mact:hover{color:#fff;border-color:#555}
+#modal-body{flex:1;overflow:auto;padding:10px 14px;display:flex;flex-direction:column;gap:6px;min-height:0}
+#modal-trunc{font-size:11px;color:#776644;font-style:italic;flex-shrink:0;display:none}
+#modal-pre{flex:1;font-size:11px;font-family:'Consolas','Monaco',monospace;color:#c5c8c6;white-space:pre-wrap;word-break:break-all;background:#0d1122;border:1px solid #1a2040;border-radius:6px;padding:10px 12px;overflow:auto;margin:0;min-height:120px}
 </style>
 </head>
 <body>
@@ -53,7 +85,18 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
   <h1>🕷 Code Tracer</h1>
   <button id="btn-rec" onclick="handleRecord()">⏺ Record</button>
   <button class="bc" onclick="doClear()">↺ Clear</button>
+  <span id="port-wrap">port <input id="port-input" type="number" min="1" max="65535" placeholder="auto" title="App localhost port (leave blank to auto-detect)"/></span>
   <span id="status"><span class="dot" id="dot"></span>Connecting...</span>
+</div>
+
+<div class="fbar">
+  <span style="font-size:11px;color:#555">Filter:</span>
+  <button class="ft" id="ft-click" onclick="toggleType('click')"><span class="ld" style="background:#1e1700;border:2px solid #f0b030"></span>Click</button>
+  <button class="ft" id="ft-ajax"  onclick="toggleType('ajax')"><span class="ld" style="background:#140d30;border:1px solid #7f77dd"></span>API</button>
+  <button class="ft" id="ft-js"    onclick="toggleType('js')"><span class="ld" style="background:#0d2b1e;border:1px solid #1d9e75"></span>JS</button>
+  <span class="fsep"></span>
+  <input type="text" id="fsearch" placeholder="Search labels…" oninput="onSearch(this.value)"/>
+  <button class="bc" id="fclr" onclick="clearSearch()" style="display:none;font-size:11px;padding:3px 8px">✕</button>
 </div>
 
 <div id="wrap">
@@ -79,6 +122,24 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
 
 <div id="toast"></div>
 
+<div id="modal-overlay" onclick="closeModal()"></div>
+<div id="modal">
+  <div id="modal-head">
+    <span id="modal-label"></span>
+    <button id="modal-close" onclick="closeModal()">✕</button>
+  </div>
+  <div class="mtabs">
+    <button class="mtab" id="mtab-payload" onclick="switchTab('payload')">↑ Request body</button>
+    <button class="mtab" id="mtab-response" onclick="switchTab('response')">↓ Response</button>
+    <span id="modal-size"></span>
+    <button class="mact" onclick="copyModalData()">Copy</button>
+  </div>
+  <div id="modal-body">
+    <div id="modal-trunc">Showing first 5 000 chars — click Copy for full data</div>
+    <pre id="modal-pre"></pre>
+  </div>
+</div>
+
 <script>
 const WS_URL = 'ws://localhost:7923';
 let ws, recording = false, drag = null;
@@ -86,15 +147,45 @@ let nodeData = {}, groups = {}, rNodes = {}, edges = [];
 let nodeCount = 0, groupCount = 0, standaloneCount = 0;
 let currentSession = null;
 
+// Filter state
+let visibleTypes = new Set(['click', 'ajax', 'js']);
+let searchTerm = '';
+
+// Payload / response data per node
+let nodeExtras = {};
+// Tracks how many JS children each node has placed (for right-side stacking)
+let jsChildrenOf = {};
+// JS node IDs that have been collapsed by the user
+let jsCollapsed = new Set();
+let modalState = { id: null, tab: 'payload' };
+const MODAL_LIMIT = 5000;
+
 // Layout
 const COLS = 3, COL_W = 280;
 const GX = 30, GY = 30, GAP = 24;
 const CX_OFF = 22, CY_START = 105, CY_STEP = 78;
 let colHeights = [GY, GY, GY]; // tracks bottom of each column
 
+// ── Canvas pan (drag on empty space) ─────────────────────────────────────────
+let pan = null;
+document.getElementById('canvas').addEventListener('mousedown', e => {
+  if (e.target !== document.getElementById('canvas') &&
+      e.target !== document.getElementById('edge-svg')) return;
+  e.preventDefault();
+  const wrap = document.getElementById('wrap');
+  pan = { ox: e.clientX, oy: e.clientY, sl: wrap.scrollLeft, st: wrap.scrollTop };
+});
+
 // ── Drag ──────────────────────────────────────────────────────────────────────
 document.addEventListener('mousemove', e => {
+  if (pan) {
+    const wrap = document.getElementById('wrap');
+    wrap.scrollLeft = pan.sl - (e.clientX - pan.ox);
+    wrap.scrollTop  = pan.st - (e.clientY - pan.oy);
+    return;
+  }
   if (!drag) return;
+  document.body.style.cursor = 'grabbing';
   const rn = rNodes[drag.id];
   if (!rn) return;
   const nx = drag.sx + (e.clientX - drag.ox);
@@ -118,7 +209,10 @@ document.addEventListener('mousemove', e => {
   }
   redrawEdges();
 });
-document.addEventListener('mouseup', () => { drag = null; });
+document.addEventListener('mouseup', () => {
+  drag = null; pan = null;
+  document.body.style.cursor = '';
+});
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 function connect() {
@@ -136,12 +230,14 @@ function connect() {
 }
 
 function onMsg(m) {
-  if      (m.type === 'addNode')    addNode(m.node);
-  else if (m.type === 'addEdge')    addEdge(m.edge);
-  else if (m.type === 'recording')  onRecording(m.value, m.sessionId);
-  else if (m.type === 'status')     setStatus(m.message);
-  else if (m.type === 'clearGraph') doClear(false);
-  else if (m.type === 'error')      showToast(m.message);
+  if      (m.type === 'addNode')     addNode(m.node);
+  else if (m.type === 'addEdge')     addEdge(m.edge);
+  else if (m.type === 'recording')   onRecording(m.value, m.sessionId);
+  else if (m.type === 'status')      setStatus(m.message);
+  else if (m.type === 'clearGraph')  doClear(false);
+  else if (m.type === 'error')       showToast(m.message);
+  else if (m.type === 'nodePayload') onNodePayload(m);
+  else if (m.type === 'nodeResponse') onNodeResponse(m);
 }
 
 // ── Recording state ───────────────────────────────────────────────────────────
@@ -158,7 +254,14 @@ function onRecording(val, sid) {
 
 function handleRecord() {
   if (!ws || ws.readyState !== WebSocket.OPEN) { showToast('Not connected to tracer'); return; }
-  ws.send(JSON.stringify({ type: recording ? 'stopRecording' : 'startRecording' }));
+  if (recording) {
+    ws.send(JSON.stringify({ type: 'stopRecording' }));
+  } else {
+    const portVal = document.getElementById('port-input').value.trim();
+    const port = portVal ? parseInt(portVal, 10) : null;
+    if (portVal) localStorage.setItem('ct-port', portVal);
+    ws.send(JSON.stringify({ type: 'startRecording', port }));
+  }
 }
 
 // ── Add node ──────────────────────────────────────────────────────────────────
@@ -173,11 +276,17 @@ function addNode(node) {
     makeGroup(node);
   } else {
     const gid = findClickParent(node);
-    if (gid) addToGroup(node, gid);
-    else     makeStandalone(node);
+    if (gid) {
+      if (node.kind === 'js' && nodeData[node.parentId]?.kind === 'js')
+        addJsChild(node, gid);
+      else
+        addToGroup(node, gid);
+    } else {
+      makeStandalone(node);
+    }
   }
 
-  redrawEdges();
+  applyFilters();
   setStatus(groupCount + ' click' + (groupCount !== 1 ? 's' : '') + ' · ' + nodeCount + ' nodes');
 }
 
@@ -258,6 +367,42 @@ function addToGroup(node, gid) {
   }
 }
 
+// ── JS child node (placed to the right of its JS parent) ─────────────────────
+function addJsChild(node, gid) {
+  const parentRn = rNodes[node.parentId];
+  if (!parentRn) { addToGroup(node, gid); return; } // fallback if parent not rendered
+
+  const g = groups[gid];
+  if (!g) return;
+  g.children.push(node.id);
+
+  if (!jsChildrenOf[node.parentId]) jsChildrenOf[node.parentId] = 0;
+  const idx = jsChildrenOf[node.parentId]++;
+
+  if (idx === 0) {
+    const nh = parentRn.el.querySelector('.nh');
+    if (nh && !nh.querySelector('.cb')) {
+      const btn = document.createElement('button');
+      btn.className = 'cb'; btn.id = 'jscb-' + node.parentId; btn.textContent = '▼';
+      btn.addEventListener('mousedown', e => e.stopPropagation());
+      btn.addEventListener('click', e => { e.stopPropagation(); toggleJsNode(node.parentId); });
+      nh.appendChild(btn);
+    }
+  }
+
+  const x = parentRn.x + 255;
+  const y = parentRn.y + idx * CY_STEP;
+
+  const el = makeEl(node, x, y);
+  if (!g.expanded) el.style.display = 'none';
+  el.addEventListener('mousedown', e => {
+    e.preventDefault();
+    drag = { id: node.id, ox: e.clientX, oy: e.clientY, sx: rNodes[node.id].x, sy: rNodes[node.id].y, grp: false };
+  });
+  document.getElementById('canvas').appendChild(el);
+  rNodes[node.id] = { el, x, y };
+}
+
 // ── Standalone node ───────────────────────────────────────────────────────────
 function makeStandalone(node) {
   const x = GX + (standaloneCount % COLS) * COL_W;
@@ -280,11 +425,41 @@ function makeEl(node, x, y) {
   el.style.left = x + 'px';
   el.style.top  = y + 'px';
   const icon = node.kind === 'ajax' ? '⚡' : node.kind === 'js' ? 'ƒ' : '●';
+  const rawFile = node.file || '';
+  const ci = rawFile.lastIndexOf(':');
+  const fileHtml = ci > 0
+    ? esc(rawFile.slice(0, ci)) + '<span class="nline">:' + esc(rawFile.slice(ci + 1)) + '</span>'
+    : esc(rawFile);
   el.innerHTML =
-    '<div class="nk">' + icon + ' ' + esc(node.file || '') + '</div>' +
-    '<div class="nl">' + esc(node.label) + '</div>' +
+    '<div class="nh">' +
+      '<div style="min-width:0;flex:1">' +
+        '<div class="nk">' + icon + ' ' + fileHtml + '</div>' +
+        '<div class="nl">' + esc(node.label) + '</div>' +
+      '</div>' +
+    '</div>' +
     '<div class="nt">+' + node.timestamp + 'ms</div>';
   return el;
+}
+
+// ── Toggle JS node collapse ───────────────────────────────────────────────────
+function toggleJsNode(id) {
+  if (jsCollapsed.has(id)) jsCollapsed.delete(id);
+  else jsCollapsed.add(id);
+  const btn = document.getElementById('jscb-' + id);
+  if (btn) btn.textContent = jsCollapsed.has(id) ? '▶' : '▼';
+  applyFilters();
+}
+
+function isJsAncestorCollapsed(id) {
+  let cur = nodeData[id];
+  for (let i = 0; i < 15; i++) {
+    if (!cur?.parentId) return false;
+    const parent = nodeData[cur.parentId];
+    if (!parent || parent.kind !== 'js') return false;
+    if (jsCollapsed.has(cur.parentId)) return true;
+    cur = parent;
+  }
+  return false;
 }
 
 // ── Toggle collapse ───────────────────────────────────────────────────────────
@@ -294,11 +469,7 @@ function toggleGroup(id) {
   g.expanded = !g.expanded;
   const cb = document.getElementById('cb-' + id);
   if (cb) cb.textContent = g.expanded ? '▼' : '▶';
-  g.children.forEach(cid => {
-    const rn = rNodes[cid];
-    if (rn) rn.el.style.display = g.expanded ? '' : 'none';
-  });
-  redrawEdges();
+  applyFilters();
 }
 
 // ── Edges ─────────────────────────────────────────────────────────────────────
@@ -318,6 +489,9 @@ function redrawEdges() {
   });
   svg.setAttribute('width',  maxX);
   svg.setAttribute('height', maxY);
+  const canvas = document.getElementById('canvas');
+  canvas.style.minWidth  = maxX + 'px';
+  canvas.style.minHeight = maxY + 'px';
 
   let h = `<defs>
     <marker id="ma" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 2L8 5L2 8" fill="none" stroke="#7f77dd" stroke-width="1.5"/></marker>
@@ -341,7 +515,7 @@ function redrawEdges() {
 // ── Clear ─────────────────────────────────────────────────────────────────────
 function clearState() {
   Object.values(rNodes).forEach(n => n.el.remove());
-  nodeData = {}; groups = {}; rNodes = {}; edges = [];
+  nodeData = {}; groups = {}; rNodes = {}; edges = []; nodeExtras = {}; jsChildrenOf = {}; jsCollapsed = new Set();
   nodeCount = 0; groupCount = 0; standaloneCount = 0;
   colHeights = [GY, GY, GY];
   redrawEdges();
@@ -365,7 +539,152 @@ function showToast(s) {
 }
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+// ── Payload / Response modal ──────────────────────────────────────────────────
+function onNodePayload(m) {
+  if (!nodeExtras[m.id]) nodeExtras[m.id] = {};
+  nodeExtras[m.id].payload = m.payload;
+  updateNodeButtons(m.id);
+}
+
+function onNodeResponse(m) {
+  if (!nodeExtras[m.id]) nodeExtras[m.id] = {};
+  try { nodeExtras[m.id].response = m.base64 ? atob(m.body) : m.body; }
+  catch { nodeExtras[m.id].response = '[binary response]'; }
+  updateNodeButtons(m.id);
+}
+
+function updateNodeButtons(id) {
+  const extra = nodeExtras[id];
+  const el = document.getElementById('n-' + id);
+  if (!el) return;
+  let row = el.querySelector('.nbtn-row');
+  if (!row) { row = document.createElement('div'); row.className = 'nbtn-row'; el.appendChild(row); }
+  row.innerHTML = '';
+  if (extra.payload !== undefined) {
+    const b = document.createElement('button');
+    b.className = 'nbtn'; b.textContent = '↑ body';
+    b.addEventListener('mousedown', e => e.stopPropagation());
+    b.addEventListener('click', e => { e.stopPropagation(); showModal(id, 'payload'); });
+    row.appendChild(b);
+  }
+  if (extra.response !== undefined) {
+    const kb = (extra.response.length / 1024).toFixed(1);
+    const b = document.createElement('button');
+    b.className = 'nbtn'; b.textContent = `↓ ${kb}KB`;
+    b.addEventListener('mousedown', e => e.stopPropagation());
+    b.addEventListener('click', e => { e.stopPropagation(); showModal(id, 'response'); });
+    row.appendChild(b);
+  }
+}
+
+function prettyJson(s) {
+  if (!s) return '';
+  try { return JSON.stringify(JSON.parse(s), null, 2); }
+  catch { return s; }
+}
+
+function showModal(id, tab) {
+  modalState = { id, tab };
+  document.getElementById('modal-label').textContent = nodeData[id]?.label || id;
+  renderModalTab();
+  document.getElementById('modal-overlay').style.display = 'block';
+  document.getElementById('modal').style.display = 'flex';
+}
+
+function renderModalTab() {
+  const { id, tab } = modalState;
+  const extra = nodeExtras[id] || {};
+  document.getElementById('mtab-payload').classList.toggle('active', tab === 'payload');
+  document.getElementById('mtab-response').classList.toggle('active', tab === 'response');
+  const raw = tab === 'payload' ? (extra.payload ?? '') : (extra.response ?? '');
+  const pretty = prettyJson(raw);
+  const truncated = pretty.length > MODAL_LIMIT;
+  document.getElementById('modal-pre').textContent =
+    (truncated ? pretty.slice(0, MODAL_LIMIT) : pretty) || (tab === 'payload' ? '(no request body)' : '(empty)');
+  document.getElementById('modal-size').textContent = raw.length
+    ? (raw.length / 1024).toFixed(1) + ' KB' : '';
+  document.getElementById('modal-trunc').style.display = truncated ? '' : 'none';
+}
+
+function switchTab(tab) { modalState.tab = tab; renderModalTab(); }
+
+function closeModal() {
+  document.getElementById('modal').style.display = 'none';
+  document.getElementById('modal-overlay').style.display = 'none';
+}
+
+function copyModalData() {
+  const { id, tab } = modalState;
+  const extra = nodeExtras[id] || {};
+  const raw = tab === 'payload' ? (extra.payload ?? '') : (extra.response ?? '');
+  navigator.clipboard.writeText(raw).then(() => showToast('Copied!'));
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// ── Filters ───────────────────────────────────────────────────────────────────
+function isNodeVisible(id) {
+  const node = nodeData[id];
+  if (!node) return true;
+  if (!visibleTypes.has(node.kind)) return false;
+
+  const q = searchTerm.toLowerCase();
+
+  if (node.kind === 'click') {
+    if (!q) return true;
+    // visible if own label matches, OR any child's label matches
+    if (node.label.toLowerCase().includes(q)) return true;
+    const g = groups[id];
+    return g ? g.children.some(cid => {
+      const c = nodeData[cid];
+      return c && visibleTypes.has(c.kind) && c.label.toLowerCase().includes(q);
+    }) : false;
+  }
+
+  // child node — match on its own label
+  const gid = findClickParent(node);
+  if (gid) {
+    if (groups[gid] && !groups[gid].expanded) return false;
+    if (!visibleTypes.has(nodeData[gid]?.kind)) return false;
+    if (q && !node.label.toLowerCase().includes(q)) return false;
+    if (isJsAncestorCollapsed(id)) return false;
+  } else {
+    if (q && !node.label.toLowerCase().includes(q)) return false;
+  }
+  return true;
+}
+
+function applyFilters() {
+  Object.keys(rNodes).forEach(id => {
+    const rn = rNodes[id];
+    if (rn) rn.el.style.display = isNodeVisible(id) ? '' : 'none';
+  });
+  redrawEdges();
+}
+
+function toggleType(kind) {
+  if (visibleTypes.has(kind)) visibleTypes.delete(kind);
+  else visibleTypes.add(kind);
+  document.getElementById('ft-' + kind)?.classList.toggle('off', !visibleTypes.has(kind));
+  applyFilters();
+}
+
+function onSearch(val) {
+  searchTerm = val.trim();
+  document.getElementById('fclr').style.display = searchTerm ? '' : 'none';
+  applyFilters();
+}
+
+function clearSearch() {
+  searchTerm = '';
+  document.getElementById('fsearch').value = '';
+  document.getElementById('fclr').style.display = 'none';
+  applyFilters();
+}
+
 window.addEventListener('resize', redrawEdges);
+const savedPort = localStorage.getItem('ct-port');
+if (savedPort) document.getElementById('port-input').value = savedPort;
 connect();
 </script>
 </body>

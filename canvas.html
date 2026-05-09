@@ -218,7 +218,8 @@ function makeGroup(node) {
   el.addEventListener('mousedown', e => {
     if (e.target.tagName === 'BUTTON') return;
     e.preventDefault();
-    drag = { id: node.id, ox: e.clientX, oy: e.clientY, sx: x, sy: y, grp: true };
+    const rn = rNodes[node.id];
+    drag = { id: node.id, ox: e.clientX, oy: e.clientY, sx: rn.x, sy: rn.y, grp: true };
   });
 
   document.getElementById('canvas').appendChild(el);

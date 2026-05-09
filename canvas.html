@@ -87,9 +87,10 @@ let nodeCount = 0, groupCount = 0, standaloneCount = 0;
 let currentSession = null;
 
 // Layout
-const COLS = 3, COL_W = 280, ROW_H = 130;
-const GX = 30, GY = 30;
+const COLS = 3, COL_W = 280;
+const GX = 30, GY = 30, GAP = 24;
 const CX_OFF = 22, CY_START = 105, CY_STEP = 78;
+let colHeights = [GY, GY, GY]; // tracks bottom of each column
 
 // ── Drag ──────────────────────────────────────────────────────────────────────
 document.addEventListener('mousemove', e => {
@@ -194,11 +195,11 @@ function findClickParent(node) {
 
 // ── Group (click node) ────────────────────────────────────────────────────────
 function makeGroup(node) {
-  const idx = groupCount++;
-  const col = idx % COLS;
-  const row = Math.floor(idx / COLS);
+  groupCount++;
+  // Place in the shortest column so groups never overlap children above
+  const col = colHeights.indexOf(Math.min(...colHeights));
   const x = GX + col * COL_W;
-  const y = GY + row * ROW_H;
+  const y = colHeights[col];
 
   const el = document.createElement('div');
   el.className = 'node click';
@@ -221,9 +222,9 @@ function makeGroup(node) {
   });
 
   document.getElementById('canvas').appendChild(el);
-  groups[node.id] = { children: [], expanded: true, childCount: 0, x, y };
+  groups[node.id] = { children: [], expanded: true, childCount: 0, x, y, col };
   rNodes[node.id] = { el, x, y };
-  console.log('[Canvas] group appended at', x, y);
+  colHeights[col] = y + 90 + GAP; // reserve space for the group node itself
 }
 
 // ── Child node ────────────────────────────────────────────────────────────────
@@ -242,6 +243,9 @@ function addToGroup(node, gid) {
   });
   document.getElementById('canvas').appendChild(el);
   rNodes[node.id] = { el, x, y };
+  // Push column height down so the next group in this column clears this child
+  const childBottom = y + 70 + GAP;
+  if (g.col !== undefined) colHeights[g.col] = Math.max(colHeights[g.col], childBottom);
   const nc = document.getElementById('nc-' + gid);
   if (nc) { const n = g.children.length; nc.textContent = n + ' API call' + (n !== 1 ? 's' : ''); }
 }
@@ -330,6 +334,7 @@ function clearState() {
   Object.values(rNodes).forEach(n => n.el.remove());
   nodeData = {}; groups = {}; rNodes = {}; edges = [];
   nodeCount = 0; groupCount = 0; standaloneCount = 0;
+  colHeights = [GY, GY, GY];
   redrawEdges();
   document.getElementById('empty').style.display = 'flex';
 }

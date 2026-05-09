@@ -1,365 +1,357 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Code Tracer — Spider Canvas</title>
-  <script src="https://cdn.jsdelivr.net/npm/reactflow@11.10.3/dist/umd/index.js"></script>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+<meta charset="UTF-8"/>
+<title>Code Tracer</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#1a1a2e;color:#e0e0e0;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.bar{display:flex;align-items:center;gap:8px;padding:8px 16px;background:#16213e;border-bottom:1px solid #0f3460;flex-shrink:0}
+.bar h1{font-size:14px;font-weight:700;color:#e94560;margin-right:4px}
+button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:pointer;font-weight:500}
+#btn-rec{background:#e94560;color:#fff}
+#btn-rec.recording{animation:pulse 1.4s ease-in-out infinite}
+.bc{background:#2a2a4a;color:#aaa;border:1px solid #444}
+.bc:hover{background:#333}
+.dot{width:8px;height:8px;border-radius:50%;background:#444;display:inline-block;margin-right:6px;flex-shrink:0}
+.dot.on{background:#4caf50}
+#status{margin-left:auto;font-size:11px;color:#888}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 
-    /* ── Toolbar ── */
-    .toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: #16213e; border-bottom: 1px solid #0f3460; flex-shrink: 0; }
-    .toolbar h1 { font-size: 14px; font-weight: 600; color: #e94560; margin-right: 8px; }
-    button { font-size: 12px; padding: 5px 14px; border-radius: 6px; border: none; cursor: pointer; font-weight: 500; transition: all .15s; }
-    .btn-record { background: #e94560; color: #fff; }
-    .btn-record:hover { background: #c73652; }
-    .btn-record.recording { animation: pulse 1.4s ease-in-out infinite; }
-    .btn-stop { background: #444; color: #fff; }
-    .btn-stop:hover { background: #555; }
-    .btn-clear { background: #2a2a4a; color: #aaa; border: 1px solid #444; }
-    .btn-clear:hover { background: #333; }
-    .btn-export { background: #2a2a4a; color: #aaa; border: 1px solid #444; }
-    .btn-export:hover { background: #333; }
-    .status { margin-left: auto; font-size: 11px; color: #888; }
-    .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: #444; display: inline-block; margin-right: 6px; }
-    .conn-dot.connected { background: #4caf50; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+#wrap{flex:1;position:relative;overflow:auto}
+#canvas{position:absolute;top:0;left:0;min-width:100%;min-height:100%}
+#edge-svg{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
 
-    /* ── Canvas ── */
-    #canvas { flex: 1; position: relative; overflow: hidden; }
+.node{position:absolute;border-radius:8px;padding:10px 14px;cursor:grab;min-width:170px;max-width:230px;box-shadow:0 2px 8px rgba(0,0,0,.5);user-select:none}
+.node:active{cursor:grabbing}
+.node.click{background:#1e1700;border:2px solid #f0b030;min-width:200px}
+.node.ajax{background:#140d30;border:1px solid #7f77dd}
+.node.js{background:#0d2b1e;border:1px solid #1d9e75}
+.nk{font-size:9px;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.nl{font-size:13px;font-weight:600;color:#e0e0e0;word-break:break-word;line-height:1.3}
+.nt{font-size:9px;color:#444;margin-top:3px}
+.nh{display:flex;justify-content:space-between;align-items:flex-start;gap:6px}
+.nh>div{min-width:0;flex:1}
+.cb{background:none;border:none;color:#f0b030;cursor:pointer;font-size:14px;padding:0;line-height:1;flex-shrink:0}
+.cb:hover{color:#fff}
+.nc{font-size:10px;color:#f0b030;margin-top:4px;opacity:.75;min-height:13px}
 
-    /* ── Nodes ── */
-    .node { position: absolute; border-radius: 8px; padding: 10px 14px; cursor: grab; min-width: 160px; max-width: 240px; box-shadow: 0 2px 8px rgba(0,0,0,.4); user-select: none; transition: box-shadow .15s; }
-    .node:hover { box-shadow: 0 4px 16px rgba(0,0,0,.6); }
-    .node:active { cursor: grabbing; }
-    .node.js { background: #0d2b1e; border: 1px solid #1d9e75; }
-    .node.ajax { background: #1a1040; border: 1px solid #7f77dd; }
-    .node.cs { background: #2b0d0d; border: 1px solid #d85a30; }
-    .node-kind { font-size: 9px; color: #666; margin-bottom: 3px; text-transform: uppercase; letter-spacing: .5px; }
-    .node-label { font-size: 13px; font-weight: 600; color: #e0e0e0; word-break: break-word; }
-    .node-sub { font-size: 10px; color: #888; margin-top: 3px; }
-    .node-time { font-size: 9px; color: #555; margin-top: 2px; }
+.leg{display:flex;gap:16px;padding:5px 16px;background:#16213e;border-top:1px solid #0f3460;font-size:11px;color:#555;flex-shrink:0}
+.ld{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:4px;vertical-align:middle}
 
-    /* ── SVG edges ── */
-    #edge-svg { position: absolute; inset: 0; pointer-events: none; }
+#empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#333;pointer-events:none}
+#empty h2{font-size:18px;color:#444}
+#empty p{font-size:13px;text-align:center;max-width:320px;line-height:1.8}
+#empty code{background:#222;padding:2px 6px;border-radius:4px;color:#e94560;font-size:12px}
 
-    /* ── Minimap ── */
-    #minimap { position: absolute; bottom: 16px; right: 16px; width: 160px; height: 100px; background: rgba(22,33,62,.9); border: 1px solid #0f3460; border-radius: 6px; overflow: hidden; }
-
-    /* ── Legend ── */
-    .legend { display: flex; gap: 16px; padding: 6px 16px; background: #16213e; border-top: 1px solid #0f3460; font-size: 11px; color: #666; flex-shrink: 0; }
-    .leg { display: flex; align-items: center; gap: 5px; }
-    .leg-dot { width: 10px; height: 10px; border-radius: 3px; }
-
-    /* ── Empty state ── */
-    #empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #444; pointer-events: none; }
-    #empty h2 { font-size: 18px; color: #555; }
-    #empty p { font-size: 13px; text-align: center; max-width: 320px; line-height: 1.7; }
-    #empty code { background: #222; padding: 2px 6px; border-radius: 4px; color: #e94560; font-size: 12px; }
-
-    /* ── Error toast ── */
-    #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #c0392b; color: #fff; padding: 10px 20px; border-radius: 8px; font-size: 13px; display: none; z-index: 999; }
-  </style>
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#c0392b;color:#fff;padding:9px 20px;border-radius:8px;font-size:13px;display:none;z-index:999;max-width:500px;text-align:center}
+</style>
 </head>
 <body>
 
-<div class="toolbar">
+<div class="bar">
   <h1>🕷 Code Tracer</h1>
-  <button class="btn-record" id="btn-record" onclick="handleRecord()">⏺ Record</button>
-  <button class="btn-clear" onclick="clearGraph()">↺ Clear</button>
-  <button class="btn-export" onclick="exportSVG()">↓ SVG</button>
-  <span class="status">
-    <span class="conn-dot" id="conn-dot"></span>
-    <span id="status-text">Connecting to tracer...</span>
-  </span>
+  <button id="btn-rec" onclick="handleRecord()">⏺ Record</button>
+  <button class="bc" onclick="doClear()">↺ Clear</button>
+  <span id="status"><span class="dot" id="dot"></span>Connecting...</span>
 </div>
 
-<div id="canvas">
-  <svg id="edge-svg"></svg>
-  <div id="empty">
-    <h2>Spider Canvas</h2>
-    <p>
-      Start Chrome with <code>--remote-debugging-port=9222</code>,<br>
-      run <code>node tracer.js</code> in your terminal,<br>
-      then click <strong>⏺ Record</strong> and click a button in your app.
-    </p>
+<div id="wrap">
+  <div id="canvas">
+    <svg id="edge-svg" width="0" height="0"></svg>
+    <div id="empty">
+      <h2>Spider Canvas</h2>
+      <p>
+        Start Chrome with <code>--remote-debugging-port=9222</code><br>
+        run <code>node tracer.js</code> in your terminal<br>
+        then click <strong>⏺ Record</strong> and click a button in your app
+      </p>
+    </div>
   </div>
 </div>
 
-<div class="legend">
-  <div class="leg"><div class="leg-dot" style="background:#0d2b1e;border:1px solid #1d9e75"></div> JS / Event</div>
-  <div class="leg"><div class="leg-dot" style="background:#1a1040;border:1px solid #7f77dd"></div> API / Network</div>
-  <div class="leg"><div class="leg-dot" style="background:#2b0d0d;border:1px solid #d85a30"></div> C# / Backend</div>
-  <span style="margin-left:auto">Drag nodes freely · scroll to zoom</span>
+<div class="leg">
+  <span><span class="ld" style="background:#1e1700;border:2px solid #f0b030"></span>Click</span>
+  <span><span class="ld" style="background:#140d30;border:1px solid #7f77dd"></span>API</span>
+  <span><span class="ld" style="background:#0d2b1e;border:1px solid #1d9e75"></span>JS</span>
+  <span style="margin-left:auto">Drag nodes · ▼ to collapse</span>
 </div>
 
 <div id="toast"></div>
 
 <script>
-// ── State ──────────────────────────────────────────────────────────────────
-const TRACER_WS = 'ws://localhost:7923';
-let ws = null;
-let recording = false;
-let nodes = {};   // id → { el, x, y, w, h }
-let edges = [];   // { id, source, target, kind }
-let nodeCount = 0;
-let zoom = 1;
-let panX = 40, panY = 40;
+const WS_URL = 'ws://localhost:7923';
+let ws, recording = false, drag = null;
+let nodeData = {}, groups = {}, rNodes = {}, edges = [];
+let nodeCount = 0, groupCount = 0, standaloneCount = 0;
+let currentSession = null;
 
-// Auto-layout grid
-let layoutCol = 0, layoutRow = 0;
-const COL_W = 220, ROW_H = 90, COLS = 4;
+// Layout
+const COLS = 3, COL_W = 280, ROW_H = 130;
+const GX = 30, GY = 30;
+const CX_OFF = 22, CY_START = 105, CY_STEP = 78;
 
-function nextPos() {
-  const x = panX + layoutCol * COL_W;
-  const y = panY + layoutRow * ROW_H;
-  layoutCol++;
-  if (layoutCol >= COLS) { layoutCol = 0; layoutRow++; }
-  return { x, y };
-}
+// ── Drag ──────────────────────────────────────────────────────────────────────
+document.addEventListener('mousemove', e => {
+  if (!drag) return;
+  const rn = rNodes[drag.id];
+  if (!rn) return;
+  const nx = drag.sx + (e.clientX - drag.ox);
+  const ny = drag.sy + (e.clientY - drag.oy);
+  const dx = nx - rn.x, dy = ny - rn.y;
+  rn.x = nx; rn.y = ny;
+  rn.el.style.left = nx + 'px';
+  rn.el.style.top  = ny + 'px';
+  if (drag.grp) {
+    const g = groups[drag.id];
+    if (g) {
+      g.x = nx; g.y = ny;
+      g.children.forEach(cid => {
+        const c = rNodes[cid];
+        if (!c) return;
+        c.x += dx; c.y += dy;
+        c.el.style.left = c.x + 'px';
+        c.el.style.top  = c.y + 'px';
+      });
+    }
+  }
+  redrawEdges();
+});
+document.addEventListener('mouseup', () => { drag = null; });
 
-// ── WebSocket connection to tracer.js ──────────────────────────────────────
+// ── WebSocket ─────────────────────────────────────────────────────────────────
 function connect() {
-  ws = new WebSocket(TRACER_WS);
-
-  ws.onopen = () => {
-    document.getElementById('conn-dot').classList.add('connected');
-    setStatus('Connected to tracer — click Record to start');
-    console.log('[Canvas] Connected to tracer');
-  };
-
-  ws.onclose = () => {
-    document.getElementById('conn-dot').classList.remove('connected');
-    setStatus('Disconnected — is tracer.js running?');
-    setTimeout(connect, 2000); // auto-reconnect
-  };
-
-  ws.onerror = () => {
-    setStatus('Cannot reach tracer — run: node tracer.js');
-  };
-
-  ws.onmessage = (e) => {
-    try { handleMessage(JSON.parse(e.data)); } catch {}
+  ws = new WebSocket(WS_URL);
+  ws.onopen  = () => { setConn(true);  setStatus('Connected — click Record'); };
+  ws.onclose = () => { setConn(false); setStatus('Disconnected — is tracer.js running?'); setTimeout(connect, 2000); };
+  ws.onmessage = e => {
+    try {
+      onMsg(JSON.parse(e.data));
+    } catch(err) {
+      console.error('[Canvas] ERROR handling message:', err);
+      showToast('JS error — check console: ' + err.message);
+    }
   };
 }
 
-function handleMessage(msg) {
-  switch (msg.type) {
-    case 'addNode':    addNode(msg.node); break;
-    case 'addEdge':    addEdge(msg.edge); break;
-    case 'recording':  setRecording(msg.value); break;
-    case 'status':     setStatus(msg.message); break;
-    case 'clearGraph': clearGraph(); break;
-    case 'error':      showToast(msg.message); break;
-  }
+function onMsg(m) {
+  if      (m.type === 'addNode')    addNode(m.node);
+  else if (m.type === 'addEdge')    addEdge(m.edge);
+  else if (m.type === 'recording')  onRecording(m.value, m.sessionId);
+  else if (m.type === 'status')     setStatus(m.message);
+  else if (m.type === 'clearGraph') doClear(false);
+  else if (m.type === 'error')      showToast(m.message);
 }
 
-// ── Record / Stop ──────────────────────────────────────────────────────────
-function handleRecord() {
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    showToast('Not connected to tracer. Run: node tracer.js');
-    return;
+// ── Recording state ───────────────────────────────────────────────────────────
+function onRecording(val, sid) {
+  if (val && sid && sid !== currentSession) {
+    currentSession = sid;
+    clearState();
   }
-  if (recording) {
-    ws.send(JSON.stringify({ type: 'stopRecording' }));
-  } else {
-    ws.send(JSON.stringify({ type: 'startRecording' }));
-  }
-}
-
-function setRecording(val) {
   recording = val;
-  const btn = document.getElementById('btn-record');
-  if (val) {
-    btn.textContent = '⏹ Stop';
-    btn.classList.add('recording');
-  } else {
-    btn.textContent = '⏺ Record';
-    btn.classList.remove('recording');
-  }
+  const b = document.getElementById('btn-rec');
+  b.textContent = val ? '⏹ Stop' : '⏺ Record';
+  b.classList.toggle('recording', val);
 }
 
-// ── Add node ───────────────────────────────────────────────────────────────
-function addNode(node) {
-  if (nodes[node.id]) return;
-  nodeCount++;
+function handleRecord() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) { showToast('Not connected to tracer'); return; }
+  ws.send(JSON.stringify({ type: recording ? 'stopRecording' : 'startRecording' }));
+}
 
+// ── Add node ──────────────────────────────────────────────────────────────────
+function addNode(node) {
+  console.log('[Canvas] addNode', node.kind, node.label, node.id);
+  if (nodeData[node.id]) { console.log('[Canvas] duplicate, skipping'); return; }
+  nodeData[node.id] = node;
+  nodeCount++;
   document.getElementById('empty').style.display = 'none';
 
-  const pos = nextPos();
-  const el = document.createElement('div');
-  el.className = 'node ' + node.kind;
-  el.id = 'node-' + node.id;
-  el.style.left = pos.x + 'px';
-  el.style.top  = pos.y + 'px';
-  const icon = node.kind === 'ajax' ? '⚡' : '◆';
-  el.innerHTML = `
-    <div class="node-kind">${icon} ${escHtml(node.file)}</div>
-    <div class="node-label">${escHtml(node.label)}</div>
-    <div class="node-time">+${node.timestamp}ms</div>
-  `;
+  if (node.kind === 'click') {
+    makeGroup(node);
+  } else {
+    const gid = findClickParent(node);
+    if (gid) addToGroup(node, gid);
+    else     makeStandalone(node);
+  }
 
-  // Drag
-  let ox, oy, ex, ey, dragging = false;
+  redrawEdges();
+  setStatus(groupCount + ' click' + (groupCount !== 1 ? 's' : '') + ' · ' + nodeCount + ' nodes');
+}
+
+function findClickParent(node) {
+  let cur = node;
+  for (let i = 0; i < 10; i++) {
+    if (!cur.parentId) return null;
+    const p = nodeData[cur.parentId];
+    if (!p) return null;
+    if (p.kind === 'click') return p.id;
+    cur = p;
+  }
+  return null;
+}
+
+// ── Group (click node) ────────────────────────────────────────────────────────
+function makeGroup(node) {
+  const idx = groupCount++;
+  const col = idx % COLS;
+  const row = Math.floor(idx / COLS);
+  const x = GX + col * COL_W;
+  const y = GY + row * ROW_H;
+
+  const el = document.createElement('div');
+  el.className = 'node click';
+  el.id = 'n-' + node.id;
+  el.style.left = x + 'px';
+  el.style.top  = y + 'px';
+  el.innerHTML =
+    '<div class="nh">' +
+      '<div><div class="nk">◆ click</div><div class="nl">' + esc(node.label) + '</div></div>' +
+      '<button class="cb" id="cb-' + node.id + '">▼</button>' +
+    '</div>' +
+    '<div class="nc" id="nc-' + node.id + '"></div>';
+
+  el.querySelector('.cb').addEventListener('mousedown', e => e.stopPropagation());
+  el.querySelector('.cb').addEventListener('click', e => { e.stopPropagation(); toggleGroup(node.id); });
   el.addEventListener('mousedown', e => {
-    dragging = true;
-    ox = e.clientX; oy = e.clientY;
-    ex = nodes[node.id].x; ey = nodes[node.id].y;
+    if (e.target.tagName === 'BUTTON') return;
     e.preventDefault();
+    drag = { id: node.id, ox: e.clientX, oy: e.clientY, sx: x, sy: y, grp: true };
   });
-  document.addEventListener('mousemove', e => {
-    if (!dragging) return;
-    nodes[node.id].x = ex + (e.clientX - ox);
-    nodes[node.id].y = ey + (e.clientY - oy);
-    el.style.left = nodes[node.id].x + 'px';
-    el.style.top  = nodes[node.id].y + 'px';
-    drawEdges();
-  });
-  document.addEventListener('mouseup', () => { dragging = false; });
 
   document.getElementById('canvas').appendChild(el);
-
-  nodes[node.id] = { el, x: pos.x, y: pos.y, w: 0, h: 0 };
-  drawEdges();
-
-  setStatus(`${nodeCount} nodes · drag to arrange · click Record to stop`);
+  groups[node.id] = { children: [], expanded: true, childCount: 0, x, y };
+  rNodes[node.id] = { el, x, y };
+  console.log('[Canvas] group appended at', x, y);
 }
 
-// ── Add edge ───────────────────────────────────────────────────────────────
+// ── Child node ────────────────────────────────────────────────────────────────
+function addToGroup(node, gid) {
+  const g = groups[gid];
+  if (!g) return;
+  const ci = g.childCount++;
+  g.children.push(node.id);
+  const x = g.x + CX_OFF;
+  const y = g.y + CY_START + ci * CY_STEP;
+  const el = makeEl(node, x, y);
+  if (!g.expanded) el.style.display = 'none';
+  el.addEventListener('mousedown', e => {
+    e.preventDefault();
+    drag = { id: node.id, ox: e.clientX, oy: e.clientY, sx: rNodes[node.id].x, sy: rNodes[node.id].y, grp: false };
+  });
+  document.getElementById('canvas').appendChild(el);
+  rNodes[node.id] = { el, x, y };
+  const nc = document.getElementById('nc-' + gid);
+  if (nc) { const n = g.children.length; nc.textContent = n + ' API call' + (n !== 1 ? 's' : ''); }
+}
+
+// ── Standalone node ───────────────────────────────────────────────────────────
+function makeStandalone(node) {
+  const x = GX + (standaloneCount % COLS) * COL_W;
+  const y = GY + 700 + Math.floor(standaloneCount / COLS) * ROW_H;
+  standaloneCount++;
+  const el = makeEl(node, x, y);
+  el.addEventListener('mousedown', e => {
+    e.preventDefault();
+    drag = { id: node.id, ox: e.clientX, oy: e.clientY, sx: rNodes[node.id].x, sy: rNodes[node.id].y, grp: false };
+  });
+  document.getElementById('canvas').appendChild(el);
+  rNodes[node.id] = { el, x, y };
+}
+
+// ── Build a node element ──────────────────────────────────────────────────────
+function makeEl(node, x, y) {
+  const el = document.createElement('div');
+  el.className = 'node ' + node.kind;
+  el.id = 'n-' + node.id;
+  el.style.left = x + 'px';
+  el.style.top  = y + 'px';
+  el.innerHTML =
+    '<div class="nk">' + (node.kind === 'ajax' ? '⚡' : '◆') + ' ' + esc(node.file || '') + '</div>' +
+    '<div class="nl">' + esc(node.label) + '</div>' +
+    '<div class="nt">+' + node.timestamp + 'ms</div>';
+  return el;
+}
+
+// ── Toggle collapse ───────────────────────────────────────────────────────────
+function toggleGroup(id) {
+  const g = groups[id];
+  if (!g) return;
+  g.expanded = !g.expanded;
+  const cb = document.getElementById('cb-' + id);
+  if (cb) cb.textContent = g.expanded ? '▼' : '▶';
+  g.children.forEach(cid => {
+    const rn = rNodes[cid];
+    if (rn) rn.el.style.display = g.expanded ? '' : 'none';
+  });
+  redrawEdges();
+}
+
+// ── Edges ─────────────────────────────────────────────────────────────────────
 function addEdge(edge) {
-  if (edges.find(e => e.id === edge.id)) return;
+  if (edges.some(e => e.id === edge.id)) return;
   edges.push(edge);
-  drawEdges();
+  redrawEdges();
 }
 
-// ── Draw edges ─────────────────────────────────────────────────────────────
-function drawEdges() {
+function redrawEdges() {
   const svg = document.getElementById('edge-svg');
-  const W = svg.parentElement.offsetWidth;
-  const H = svg.parentElement.offsetHeight;
-  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  // Size SVG to cover all node positions
+  let maxX = 400, maxY = 300;
+  Object.values(rNodes).forEach(n => {
+    maxX = Math.max(maxX, n.x + (n.el.offsetWidth  || 230) + 20);
+    maxY = Math.max(maxY, n.y + (n.el.offsetHeight || 80)  + 20);
+  });
+  svg.setAttribute('width',  maxX);
+  svg.setAttribute('height', maxY);
 
-  const colours = { call: '#1d9e75', ajax: '#7f77dd', return: '#888' };
-
-  let html = `<defs>
-    <marker id="arr-call" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
-      <path d="M2 2L8 5L2 8" fill="none" stroke="#1d9e75" stroke-width="1.5"/>
-    </marker>
-    <marker id="arr-ajax" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
-      <path d="M2 2L8 5L2 8" fill="none" stroke="#7f77dd" stroke-width="1.5"/>
-    </marker>
+  let h = `<defs>
+    <marker id="ma" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 2L8 5L2 8" fill="none" stroke="#7f77dd" stroke-width="1.5"/></marker>
+    <marker id="mc" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 2L8 5L2 8" fill="none" stroke="#1d9e75" stroke-width="1.5"/></marker>
   </defs>`;
 
-  edges.forEach(edge => {
-    const s = nodes[edge.source];
-    const t = nodes[edge.target];
+  edges.forEach(e => {
+    const s = rNodes[e.source], t = rNodes[e.target];
     if (!s || !t) return;
-
-    const sw = s.el.offsetWidth || 160;
-    const sh = s.el.offsetHeight || 60;
-    const tw = t.el.offsetWidth || 160;
-    const th = t.el.offsetHeight || 60;
-
-    const x1 = s.x + sw / 2;
-    const y1 = s.y + sh / 2;
-    const x2 = t.x + tw / 2;
-    const y2 = t.y + th / 2;
-    const mx = (x1 + x2) / 2;
-    const my = (y1 + y2) / 2 - 30;
-
-    const col = colours[edge.kind] || '#888';
-    const markerId = edge.kind === 'ajax' ? 'arr-ajax' : 'arr-call';
-    const dash = edge.kind === 'ajax' ? 'stroke-dasharray="6 3"' : '';
-
-    html += `<path d="M${x1} ${y1} Q${mx} ${my} ${x2} ${y2}"
-      fill="none" stroke="${col}" stroke-width="1.5" opacity=".7"
-      ${dash} marker-end="url(#${markerId})"/>`;
+    if (s.el.style.display === 'none' || t.el.style.display === 'none') return;
+    const x1 = s.x + (s.el.offsetWidth  || 200) / 2;
+    const y1 = s.y + (s.el.offsetHeight || 60)  / 2;
+    const x2 = t.x + (t.el.offsetWidth  || 170) / 2;
+    const y2 = t.y + (t.el.offsetHeight || 60)  / 2;
+    const isAjax = e.kind === 'ajax';
+    h += `<path d="M${x1} ${y1} Q${(x1+x2)/2} ${(y1+y2)/2-20} ${x2} ${y2}" fill="none" stroke="${isAjax?'#7f77dd':'#1d9e75'}" stroke-width="1.5" opacity=".75" ${isAjax?'stroke-dasharray="5 3"':''} marker-end="url(#${isAjax?'ma':'mc'})"/>`;
   });
-
-  svg.innerHTML = html;
+  svg.innerHTML = h;
 }
 
-// ── Clear ──────────────────────────────────────────────────────────────────
-function clearGraph() {
-  Object.values(nodes).forEach(n => n.el.remove());
-  nodes = {};
-  edges = [];
-  nodeCount = 0;
-  layoutCol = 0;
-  layoutRow = 0;
-  drawEdges();
+// ── Clear ─────────────────────────────────────────────────────────────────────
+function clearState() {
+  Object.values(rNodes).forEach(n => n.el.remove());
+  nodeData = {}; groups = {}; rNodes = {}; edges = [];
+  nodeCount = 0; groupCount = 0; standaloneCount = 0;
+  redrawEdges();
   document.getElementById('empty').style.display = 'flex';
-  setStatus('Cleared — click Record to start a new trace');
-  if (ws && ws.readyState === WebSocket.OPEN) {
+}
+
+function doClear(notify = true) {
+  clearState();
+  setStatus('Cleared — click Record to start');
+  if (notify && ws?.readyState === WebSocket.OPEN)
     ws.send(JSON.stringify({ type: 'clearGraph' }));
-  }
 }
 
-// ── Export SVG ─────────────────────────────────────────────────────────────
-function exportSVG() {
-  const canvas = document.getElementById('canvas');
-  const allNodes = Object.values(nodes);
-  if (!allNodes.length) return;
-
-  const minX = Math.min(...allNodes.map(n => n.x)) - 20;
-  const minY = Math.min(...allNodes.map(n => n.y)) - 20;
-  const maxX = Math.max(...allNodes.map(n => n.x + (n.el.offsetWidth || 160))) + 20;
-  const maxY = Math.max(...allNodes.map(n => n.y + (n.el.offsetHeight || 60))) + 20;
-
-  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} ${minY} ${maxX - minX} ${maxY - minY}" style="background:#1a1a2e">`;
-
-  // Edges
-  edges.forEach(edge => {
-    const s = nodes[edge.source];
-    const t = nodes[edge.target];
-    if (!s || !t) return;
-    const x1 = s.x + 80, y1 = s.y + 30;
-    const x2 = t.x + 80, y2 = t.y + 30;
-    const col = edge.kind === 'ajax' ? '#7f77dd' : '#1d9e75';
-    svg += `<path d="M${x1} ${y1} Q${(x1+x2)/2} ${(y1+y2)/2-30} ${x2} ${y2}" fill="none" stroke="${col}" stroke-width="1.5" opacity=".7"/>`;
-  });
-
-  // Nodes
-  allNodes.forEach(n => {
-    const label = n.el.querySelector('.node-label')?.textContent || '';
-    const sub = n.el.querySelector('.node-sub')?.textContent || '';
-    const bg = n.el.classList.contains('ajax') ? '#1a1040' : n.el.classList.contains('cs') ? '#2b0d0d' : '#0d2b1e';
-    const border = n.el.classList.contains('ajax') ? '#7f77dd' : n.el.classList.contains('cs') ? '#d85a30' : '#1d9e75';
-    svg += `<rect x="${n.x}" y="${n.y}" width="160" height="56" rx="8" fill="${bg}" stroke="${border}" stroke-width="1"/>`;
-    svg += `<text x="${n.x+12}" y="${n.y+22}" font-size="11" fill="#e0e0e0" font-family="sans-serif">${escHtml(label.slice(0, 24))}</text>`;
-    svg += `<text x="${n.x+12}" y="${n.y+38}" font-size="9" fill="#888" font-family="sans-serif">${escHtml(sub)}</text>`;
-  });
-
-  svg += '</svg>';
-
-  const blob = new Blob([svg], { type: 'image/svg+xml' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'code-trace.svg';
-  a.click();
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-function setStatus(msg) {
-  document.getElementById('status-text').textContent = msg;
-}
-
-function showToast(msg) {
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function setConn(v) { document.getElementById('dot').classList.toggle('on', v); }
+function setStatus(s) { document.getElementById('status').textContent = s; }
+function showToast(s) {
   const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.style.display = 'block';
-  setTimeout(() => { t.style.display = 'none'; }, 4000);
+  t.textContent = s; t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 5000);
 }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-function escHtml(str) {
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-window.addEventListener('resize', drawEdges);
-
-// Start connecting
+window.addEventListener('resize', redrawEdges);
 connect();
 </script>
 </body>

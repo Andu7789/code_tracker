@@ -463,9 +463,13 @@ function makeEl(node, x, y) {
     if (wsRoot) {
       try {
         const u = new URL(node.fullUrl);
-        const localPath = wsRoot.replace(/[\\/]$/, '') + u.pathname;
-        const vsUrl = 'vscode://file/' + localPath.replace(/\\/g, '/') + ':' + (node.lineNumber || 1);
-        fileHtml = `<a class="vsc-link" href="${esc(vsUrl)}" onclick="event.stopPropagation()">${fileHtml}</a>`;
+        // Only link files served locally — skip CDN/external URLs like code.jquery.com
+        if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') {
+          const localPath = wsRoot.replace(/[\\/]$/, '') + u.pathname;
+          const vsUrl = 'vscode://file/' + localPath.replace(/\\/g, '/') + ':' + (node.lineNumber || 1);
+          // Use onclick+window.location.href — more reliable than href for custom protocols
+          fileHtml = `<span class="vsc-link" onclick="event.stopPropagation();window.location.href='${vsUrl.replace(/'/g, "\\'")}'">${fileHtml}</span>`;
+        }
       } catch {}
     }
   }

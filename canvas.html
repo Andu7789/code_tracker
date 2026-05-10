@@ -72,6 +72,11 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
 #vscode-root{width:155px;font-size:11px;padding:3px 7px;border-radius:5px;border:1px solid #333;background:#0d1122;color:#ddd;outline:none}
 #vscode-root:focus{border-color:#555}
 #vscode-root::placeholder{color:#3a3a5a}
+#minimap-wrap{position:fixed;bottom:42px;right:16px;width:210px;background:#0d1122ee;border:1px solid #1a3060;border-radius:8px;overflow:hidden;z-index:200;box-shadow:0 4px 20px rgba(0,0,0,.5)}
+#minimap-hd{display:flex;justify-content:space-between;align-items:center;padding:3px 8px;font-size:9px;color:#445;letter-spacing:.5px;text-transform:uppercase;background:#121d38;border-bottom:1px solid #1a2040}
+#mm-close{background:none;border:none;color:#445;cursor:pointer;font-size:11px;line-height:1;padding:0}
+#mm-close:hover{color:#aaa}
+#minimap-canvas{display:block;cursor:crosshair}
 
 .nbtn-row{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap}
 .nbtn{font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #7f77dd55;background:#140d30;color:#8888cc;cursor:pointer}
@@ -137,6 +142,12 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
   <span><span class="ld" style="background:#0d2b1e;border:1px solid #1d9e75"></span>JS</span>
   <span><span class="ld" style="background:#1e0505;border:1px solid #e74c3c"></span>Error</span>
   <span style="margin-left:auto">Drag nodes · ▼ to collapse</span>
+  <button id="mm-btn" class="bc" onclick="toggleMinimap()" style="font-size:10px;padding:2px 8px">⊟ Map</button>
+</div>
+
+<div id="minimap-wrap">
+  <div id="minimap-hd"><span>Overview</span><button id="mm-close" onclick="toggleMinimap()">✕</button></div>
+  <canvas id="minimap-canvas" width="210" height="130"></canvas>
 </div>
 
 <div id="toast"></div>
@@ -556,6 +567,7 @@ function redrawEdges() {
     h += `<path d="M${x1} ${y1} Q${(x1+x2)/2} ${(y1+y2)/2-20} ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="1.5" opacity=".75" ${dash} marker-end="url(#${marker})"/>`;
   });
   svg.innerHTML = h;
+  redrawMinimap();
 }
 
 // ── Clear ─────────────────────────────────────────────────────────────────────
@@ -750,6 +762,87 @@ function clearSearch() {
 }
 
 window.addEventListener('resize', redrawEdges);
+document.getElementById('wrap').addEventListener('scroll', redrawMinimap);
+
+// ── Minimap ───────────────────────────────────────────────────────────────────
+const MM_W = 210, MM_H = 130;
+let mmVisible = true;
+
+function toggleMinimap() {
+  mmVisible = !mmVisible;
+  document.getElementById('minimap-wrap').style.display = mmVisible ? '' : 'none';
+  document.getElementById('mm-btn').textContent = mmVisible ? '⊟ Map' : '⊞ Map';
+}
+
+function redrawMinimap() {
+  if (!mmVisible) return;
+  const cvs = document.getElementById('minimap-canvas');
+  if (!cvs) return;
+  const ctx = cvs.getContext('2d');
+  cvs.width = MM_W; cvs.height = MM_H;
+  ctx.clearRect(0, 0, MM_W, MM_H);
+
+  const entries = Object.entries(rNodes).filter(([, rn]) => rn.el.style.display !== 'none');
+  if (!entries.length) return;
+
+  let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
+  entries.forEach(([, rn]) => {
+    const w = rn.el.offsetWidth || 200, h = rn.el.offsetHeight || 70;
+    if (rn.x < minX) minX = rn.x;
+    if (rn.y < minY) minY = rn.y;
+    if (rn.x + w > maxX) maxX = rn.x + w;
+    if (rn.y + h > maxY) maxY = rn.y + h;
+  });
+
+  const PAD = 16;
+  minX -= PAD; minY -= PAD; maxX += PAD; maxY += PAD;
+  const scale = Math.min(MM_W / (maxX - minX), MM_H / (maxY - minY));
+  const offX = (MM_W - (maxX - minX) * scale) / 2;
+  const offY = (MM_H - (maxY - minY) * scale) / 2;
+  const tx = wx => offX + (wx - minX) * scale;
+  const ty = wy => offY + (wy - minY) * scale;
+
+  const KC = { click: '#f0b030', ajax: '#7f77dd', js: '#1d9e75', error: '#e74c3c' };
+
+  entries.forEach(([id, rn]) => {
+    const kind = nodeData[id]?.kind || 'click';
+    const color = KC[kind] || '#555';
+    const w = Math.max(5, (rn.el.offsetWidth  || 200) * scale);
+    const h = Math.max(3, (rn.el.offsetHeight || 70)  * scale);
+    ctx.fillStyle   = color + '55';
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = 0.5;
+    ctx.beginPath();
+    ctx.roundRect(tx(rn.x), ty(rn.y), w, h, 1);
+    ctx.fill(); ctx.stroke();
+  });
+
+  // Viewport indicator
+  const wrap = document.getElementById('wrap');
+  const vx = tx(wrap.scrollLeft), vy = ty(wrap.scrollTop);
+  const vw = wrap.clientWidth * scale, vh = wrap.clientHeight * scale;
+  ctx.strokeStyle = 'rgba(255,255,255,.35)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 2]);
+  ctx.strokeRect(vx, vy, vw, vh);
+  ctx.setLineDash([]);
+
+  cvs._mm = { scale, minX, minY, offX, offY };
+}
+
+document.getElementById('minimap-canvas').addEventListener('click', e => {
+  const cvs = document.getElementById('minimap-canvas');
+  if (!cvs._mm) return;
+  const { scale, minX, minY, offX, offY } = cvs._mm;
+  const rect = cvs.getBoundingClientRect();
+  const cx = (e.clientX - rect.left) * (MM_W / rect.width);
+  const cy = (e.clientY - rect.top)  * (MM_H / rect.height);
+  const wx = (cx - offX) / scale + minX;
+  const wy = (cy - offY) / scale + minY;
+  const wrap = document.getElementById('wrap');
+  wrap.scrollLeft = wx - wrap.clientWidth  / 2;
+  wrap.scrollTop  = wy - wrap.clientHeight / 2;
+});
 const savedPort = localStorage.getItem('ct-port');
 if (savedPort) document.getElementById('port-input').value = savedPort;
 const savedPat = localStorage.getItem('ct-patterns');

@@ -61,6 +61,17 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
 .fsep{width:1px;height:14px;background:#333;margin:0 4px}
 #fsearch{font-size:11px;padding:4px 10px;border-radius:5px;border:1px solid #333;background:#0d1122;color:#ddd;width:160px;outline:none}
 #fsearch:focus{border-color:#555}
+.node.error-node{background:#1e0505;border:1px solid #e74c3c}
+.node.failed{border-color:#e74c3c !important;background:#1e0808 !important}
+.nstatus{font-size:10px;margin-top:3px}
+.nstatus.ok{color:#4caf50}
+.nstatus.fail{color:#e74c3c;font-weight:600}
+.vsc-link{color:inherit;text-decoration:none}
+.vsc-link:hover{opacity:.75;text-decoration:underline}
+#vsc-wrap{display:flex;align-items:center;gap:5px;font-size:11px;color:#555}
+#vscode-root{width:155px;font-size:11px;padding:3px 7px;border-radius:5px;border:1px solid #333;background:#0d1122;color:#ddd;outline:none}
+#vscode-root:focus{border-color:#555}
+#vscode-root::placeholder{color:#3a3a5a}
 
 .nbtn-row{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap}
 .nbtn{font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #7f77dd55;background:#140d30;color:#8888cc;cursor:pointer}
@@ -91,6 +102,7 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
   <button class="bc" onclick="doClear()">↺ Clear</button>
   <span id="port-wrap">port <input id="port-input" type="number" min="1" max="65535" placeholder="auto" title="App localhost port (leave blank to auto-detect)"/></span>
   <span id="pat-wrap">capture <input id="pat-input" type="text" placeholder="all XHR/fetch" title="URL patterns to capture, comma-separated (e.g. /api, supabase) — blank = all XHR/fetch"/></span>
+  <span id="vsc-wrap">VS Code <input id="vscode-root" type="text" placeholder="e.g. C:\myapp" title="Local workspace root — makes JS file:line links clickable in VS Code"/></span>
   <span id="status"><span class="dot" id="dot"></span>Connecting...</span>
 </div>
 
@@ -99,6 +111,7 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
   <button class="ft" id="ft-click" onclick="toggleType('click')"><span class="ld" style="background:#1e1700;border:2px solid #f0b030"></span>Click</button>
   <button class="ft" id="ft-ajax"  onclick="toggleType('ajax')"><span class="ld" style="background:#140d30;border:1px solid #7f77dd"></span>API</button>
   <button class="ft" id="ft-js"    onclick="toggleType('js')"><span class="ld" style="background:#0d2b1e;border:1px solid #1d9e75"></span>JS</button>
+  <button class="ft" id="ft-error" onclick="toggleType('error')"><span class="ld" style="background:#1e0505;border:1px solid #e74c3c"></span>Errors</button>
   <span class="fsep"></span>
   <input type="text" id="fsearch" placeholder="Search labels…" oninput="onSearch(this.value)"/>
   <button class="bc" id="fclr" onclick="clearSearch()" style="display:none;font-size:11px;padding:3px 8px">✕</button>
@@ -122,6 +135,7 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
   <span><span class="ld" style="background:#1e1700;border:2px solid #f0b030"></span>Click</span>
   <span><span class="ld" style="background:#140d30;border:1px solid #7f77dd"></span>API</span>
   <span><span class="ld" style="background:#0d2b1e;border:1px solid #1d9e75"></span>JS</span>
+  <span><span class="ld" style="background:#1e0505;border:1px solid #e74c3c"></span>Error</span>
   <span style="margin-left:auto">Drag nodes · ▼ to collapse</span>
 </div>
 
@@ -153,7 +167,7 @@ let nodeCount = 0, groupCount = 0, standaloneCount = 0;
 let currentSession = null;
 
 // Filter state
-let visibleTypes = new Set(['click', 'ajax', 'js']);
+let visibleTypes = new Set(['click', 'ajax', 'js', 'error']);
 let searchTerm = '';
 
 // Payload / response data per node
@@ -241,8 +255,9 @@ function onMsg(m) {
   else if (m.type === 'status')      setStatus(m.message);
   else if (m.type === 'clearGraph')  doClear(false);
   else if (m.type === 'error')       showToast(m.message);
-  else if (m.type === 'nodePayload') onNodePayload(m);
+  else if (m.type === 'nodePayload')  onNodePayload(m);
   else if (m.type === 'nodeResponse') onNodeResponse(m);
+  else if (m.type === 'nodeStatus')   onNodeStatus(m);
 }
 
 // ── Recording state ───────────────────────────────────────────────────────────
@@ -368,9 +383,11 @@ function addToGroup(node, gid) {
   if (nc) {
     const apiN = g.children.filter(cid => nodeData[cid]?.kind === 'ajax').length;
     const jsN  = g.children.filter(cid => nodeData[cid]?.kind === 'js').length;
+    const errN = g.children.filter(cid => nodeData[cid]?.kind === 'error').length;
     const parts = [];
     if (apiN) parts.push(apiN + ' API call' + (apiN !== 1 ? 's' : ''));
     if (jsN)  parts.push(jsN  + ' JS fn'    + (jsN  !== 1 ? 's' : ''));
+    if (errN) parts.push(errN + ' error'     + (errN !== 1 ? 's' : ''));
     nc.textContent = parts.join(' · ') || '';
   }
 }
@@ -428,16 +445,27 @@ function makeStandalone(node) {
 // ── Build a node element ──────────────────────────────────────────────────────
 function makeEl(node, x, y) {
   const el = document.createElement('div');
-  el.className = 'node ' + node.kind;
+  el.className = 'node ' + (node.kind === 'error' ? 'error-node' : node.kind);
   el.id = 'n-' + node.id;
   el.style.left = x + 'px';
   el.style.top  = y + 'px';
-  const icon = node.kind === 'ajax' ? '⚡' : node.kind === 'js' ? 'ƒ' : '●';
+  const icon = node.kind === 'ajax' ? '⚡' : node.kind === 'js' ? 'ƒ' : node.kind === 'error' ? '✗' : '●';
   const rawFile = node.file || '';
   const ci = rawFile.lastIndexOf(':');
-  const fileHtml = ci > 0
+  let fileHtml = ci > 0
     ? esc(rawFile.slice(0, ci)) + '<span class="nline">:' + esc(rawFile.slice(ci + 1)) + '</span>'
     : esc(rawFile);
+  if (node.kind === 'js' && node.fullUrl) {
+    const wsRoot = localStorage.getItem('ct-vsroot') || '';
+    if (wsRoot) {
+      try {
+        const u = new URL(node.fullUrl);
+        const localPath = wsRoot.replace(/[\\/]$/, '') + u.pathname;
+        const vsUrl = 'vscode://file/' + localPath.replace(/\\/g, '/') + ':' + (node.lineNumber || 1);
+        fileHtml = `<a class="vsc-link" href="${esc(vsUrl)}" onclick="event.stopPropagation()">${fileHtml}</a>`;
+      } catch {}
+    }
+  }
   el.innerHTML =
     '<div class="nh">' +
       '<div style="min-width:0;flex:1">' +
@@ -504,6 +532,7 @@ function redrawEdges() {
   let h = `<defs>
     <marker id="ma" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 2L8 5L2 8" fill="none" stroke="#7f77dd" stroke-width="1.5"/></marker>
     <marker id="mc" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 2L8 5L2 8" fill="none" stroke="#1d9e75" stroke-width="1.5"/></marker>
+    <marker id="me" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 2L8 5L2 8" fill="none" stroke="#e74c3c" stroke-width="1.5"/></marker>
   </defs>`;
 
   edges.forEach(e => {
@@ -514,8 +543,10 @@ function redrawEdges() {
     const y1 = s.y + (s.el.offsetHeight || 60)  / 2;
     const x2 = t.x + (t.el.offsetWidth  || 170) / 2;
     const y2 = t.y + (t.el.offsetHeight || 60)  / 2;
-    const isAjax = e.kind === 'ajax';
-    h += `<path d="M${x1} ${y1} Q${(x1+x2)/2} ${(y1+y2)/2-20} ${x2} ${y2}" fill="none" stroke="${isAjax?'#7f77dd':'#1d9e75'}" stroke-width="1.5" opacity=".75" ${isAjax?'stroke-dasharray="5 3"':''} marker-end="url(#${isAjax?'ma':'mc'})"/>`;
+    const color  = e.kind === 'ajax' ? '#7f77dd' : e.kind === 'error' ? '#e74c3c' : '#1d9e75';
+    const marker = e.kind === 'ajax' ? 'ma'      : e.kind === 'error' ? 'me'      : 'mc';
+    const dash   = e.kind === 'ajax' ? 'stroke-dasharray="5 3"' : '';
+    h += `<path d="M${x1} ${y1} Q${(x1+x2)/2} ${(y1+y2)/2-20} ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="1.5" opacity=".75" ${dash} marker-end="url(#${marker})"/>`;
   });
   svg.innerHTML = h;
 }
@@ -546,6 +577,18 @@ function showToast(s) {
   setTimeout(() => t.style.display = 'none', 5000);
 }
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Status + timing from Network.responseReceived ────────────────────────────
+function onNodeStatus(m) {
+  const el = document.getElementById('n-' + m.id);
+  if (!el) return;
+  let badge = el.querySelector('.nstatus');
+  if (!badge) { badge = document.createElement('div'); badge.className = 'nstatus'; el.appendChild(badge); }
+  const ok = m.status >= 200 && m.status < 400;
+  badge.className = 'nstatus ' + (ok ? 'ok' : 'fail');
+  badge.textContent = m.status + ' · ' + m.duration + 'ms';
+  if (!ok) el.classList.add('failed');
+}
 
 // ── Payload / Response modal ──────────────────────────────────────────────────
 function onNodePayload(m) {
@@ -695,6 +738,11 @@ const savedPort = localStorage.getItem('ct-port');
 if (savedPort) document.getElementById('port-input').value = savedPort;
 const savedPat = localStorage.getItem('ct-patterns');
 if (savedPat) document.getElementById('pat-input').value = savedPat;
+const savedVsRoot = localStorage.getItem('ct-vsroot');
+if (savedVsRoot) document.getElementById('vscode-root').value = savedVsRoot;
+document.getElementById('vscode-root').addEventListener('change', e => {
+  localStorage.setItem('ct-vsroot', e.target.value.trim());
+});
 connect();
 </script>
 </body>

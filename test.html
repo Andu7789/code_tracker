@@ -62,6 +62,16 @@ button:hover{opacity:.85}
     </div>
   </div>
 
+  <div class="card" style="border:1px solid #e74c3c44">
+    <h2 style="color:#e74c3c">Error tests</h2>
+    <div class="btn-row">
+      <button class="btn-red" onclick="fetch404()">GET 404</button>
+      <button class="btn-red" onclick="ajax500()">POST 500</button>
+      <button class="btn-red" onclick="throwConsoleError()">console.error</button>
+      <button class="btn-orange" onclick="successThenError()">Success + error</button>
+    </div>
+  </div>
+
   <div class="card">
     <h2>Console log</h2>
     <div id="log"><span class="log-info">— waiting for requests —</span></div>
@@ -168,6 +178,54 @@ function fetchTodos() {
     .then(r => r.json())
     .then(data => log('← Got ' + data.length + ' todos via fetch()'))
     .catch(err => log('✗ ' + err.message, 'err'));
+}
+
+// ── Error tests ───────────────────────────────────────────────────────────────
+function fetch404() {
+  log('→ GET /nonexistent-endpoint (expect 404)', 'info');
+  fetch('/nonexistent-endpoint')
+    .then(r => {
+      log('← HTTP ' + r.status + (r.ok ? ' OK' : ' ERROR'));
+      if (!r.ok) console.error('404 Not Found: /nonexistent-endpoint');
+    })
+    .catch(err => { log('✗ Network error: ' + err.message, 'err'); console.error('Network error', err.message); });
+}
+
+function ajax500() {
+  log('→ POST https://httpbin.org/status/500 (expect 500)', 'info');
+  $.ajax({
+    url: 'https://httpbin.org/status/500',
+    type: 'POST',
+    data: JSON.stringify({ test: true }),
+    contentType: 'application/json',
+    success: function() { log('← 500 (unexpected success)'); },
+    error: function(xhr) {
+      log('← HTTP ' + xhr.status + ' Server Error', 'err');
+      console.error('Server error 500: POST https://httpbin.org/status/500');
+    }
+  });
+}
+
+function throwConsoleError() {
+  log('→ Triggering console.error', 'info');
+  console.error('Test error: user session expired, token invalid');
+  log('← console.error fired (check canvas for red node)');
+}
+
+function successThenError() {
+  log('→ GET /users/1 then console.error', 'info');
+  $.ajax({
+    url: BASE + '/users/1',
+    type: 'GET',
+    dataType: 'json',
+    success: function(data) {
+      log('← Got user: ' + data.name);
+      // Simulate a data validation error after a successful call
+      console.error('Validation error: user.role is undefined for user ' + data.id);
+      log('← console.error fired after success');
+    },
+    error: function(err) { log('✗ ' + err.statusText, 'err'); }
+  });
 }
 
 // jQuery $.ajax POST

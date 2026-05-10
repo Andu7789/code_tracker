@@ -238,7 +238,7 @@ function handleCDPMessage(msg) {
     emitNode({ id: nodeId, kind: 'ajax', label: reqMethod + ' ' + cleanUrl(url),
                file: 'api', timestamp: Date.now() - startTime, parentId });
     if (parentId) emitEdge({ id: 'e' + nodeId, source: parentId, target: nodeId, kind: 'ajax' });
-    requestMap[params.requestId] = nodeId;
+    requestMap[params.requestId] = { nodeId, timestamp: params.timestamp };
     if (params.request.postData)
       broadcast({ type: 'nodePayload', id: nodeId, payload: params.request.postData });
     callStack.push(nodeId);
@@ -246,20 +246,46 @@ function handleCDPMessage(msg) {
     return;
   }
 
+  if (method === 'Network.responseReceived') {
+    const entry = requestMap[params.requestId];
+    if (!entry) return;
+    const status = params.response?.status ?? 0;
+    const duration = Math.round((params.timestamp - entry.timestamp) * 1000);
+    broadcast({ type: 'nodeStatus', id: entry.nodeId, status, duration });
+    return;
+  }
+
   if (method === 'Network.loadingFinished') {
-    const nodeId = requestMap[params.requestId];
-    if (!nodeId) return;
+    const entry = requestMap[params.requestId];
+    if (!entry) return;
     delete requestMap[params.requestId];
     cdpSend('Network.getResponseBody', { requestId: params.requestId }, (result) => {
       if (result?.body) {
-        broadcast({ type: 'nodeResponse', id: nodeId, body: result.body, base64: !!result.base64Encoded });
+        broadcast({ type: 'nodeResponse', id: entry.nodeId, body: result.body, base64: !!result.base64Encoded });
       }
     });
     return;
   }
 
   if (method === 'Runtime.consoleAPICalled') {
-    const text = params?.args?.[0]?.value ?? '';
+    const type = params?.type ?? '';
+    const args = params?.args ?? [];
+
+    // console.error — emit as a red error node linked to the current click
+    if (type === 'error') {
+      const text = args.map(a => a.value ?? a.description ?? String(a.type ?? '')).join(' ').trim();
+      if (text) {
+        const parentId = callStack[callStack.length - 1];
+        const nodeId = sessionId + (++nodeCounter);
+        console.log('[Tracer] console.error:', text.slice(0, 80));
+        emitNode({ id: nodeId, kind: 'error', label: text.slice(0, 120),
+                   file: 'console.error', timestamp: Date.now() - startTime, parentId });
+        if (parentId) emitEdge({ id: 'e' + nodeId, source: parentId, target: nodeId, kind: 'error' });
+      }
+      return;
+    }
+
+    const text = args[0]?.value ?? '';
     if (!text.startsWith('[CT]')) return;
     console.log('[Tracer]', text);
 
@@ -324,8 +350,8 @@ function parseProfile(profile, parentClickId) {
         const nodeId = sessionId + (++nodeCounter);
         seenMap.set(key, nodeId);
         emitNode({ id: nodeId, kind: 'js', label: functionName,
-                   file: fileName + ':' + line, timestamp: Date.now() - startTime,
-                   parentId: parentCanvasId });
+                   file: fileName + ':' + line, fullUrl: url, lineNumber: line,
+                   timestamp: Date.now() - startTime, parentId: parentCanvasId });
         emitEdge({ id: 'e' + nodeId, source: parentCanvasId, target: nodeId, kind: 'js' });
         nextParent = nodeId;
       }

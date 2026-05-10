@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Code Tracer — Test App</title>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;min-height:100vh}
+.header{background:#2c3e50;color:#fff;padding:14px 24px;display:flex;align-items:center;gap:12px}
+.header h1{font-size:16px;font-weight:600}
+.header .sub{font-size:12px;color:#aaa;margin-left:auto}
+.container{max-width:800px;margin:32px auto;padding:0 20px;display:flex;flex-direction:column;gap:20px}
+.card{background:#fff;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.1);padding:20px}
+.card h2{font-size:14px;font-weight:600;color:#555;margin-bottom:14px;text-transform:uppercase;letter-spacing:.5px}
+.btn-row{display:flex;flex-wrap:wrap;gap:10px}
+button{font-size:13px;padding:9px 20px;border-radius:7px;border:none;cursor:pointer;font-weight:500;transition:opacity .15s}
+button:hover{opacity:.85}
+.btn-blue{background:#3498db;color:#fff}
+.btn-green{background:#27ae60;color:#fff}
+.btn-red{background:#e74c3c;color:#fff}
+.btn-purple{background:#8e44ad;color:#fff}
+.btn-orange{background:#e67e22;color:#fff}
+#log{background:#1a1a2e;border-radius:8px;padding:14px;font-family:'Consolas','Monaco',monospace;font-size:12px;color:#ccc;min-height:120px;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
+.log-ok{color:#4caf50}
+.log-err{color:#e74c3c}
+.log-info{color:#aaa}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Code Tracer — Test App</h1>
+  <span class="sub">Open canvas.html, click Record, then use the buttons below</span>
+</div>
+
+<div class="container">
+
+  <div class="card">
+    <h2>User operations (GET / POST)</h2>
+    <div class="btn-row">
+      <button class="btn-blue" onclick="getUsers()">GET /users</button>
+      <button class="btn-green" onclick="createUser()">POST /users</button>
+      <button class="btn-blue" onclick="getUser(1)">GET /users/1</button>
+      <button class="btn-red" onclick="deleteUser(1)">DELETE /users/1</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Posts (chained calls)</h2>
+    <div class="btn-row">
+      <button class="btn-purple" onclick="loadPostsAndComments()">Load posts then comments</button>
+      <button class="btn-green" onclick="createPost()">POST /posts</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Mixed fetch + $.ajax</h2>
+    <div class="btn-row">
+      <button class="btn-orange" onclick="fetchTodos()">fetch() /todos</button>
+      <button class="btn-orange" onclick="jqueryAjax()">$.ajax POST /posts</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Console log</h2>
+    <div id="log"><span class="log-info">— waiting for requests —</span></div>
+  </div>
+
+</div>
+
+<script>
+const BASE = 'https://jsonplaceholder.typicode.com';
+
+function log(msg, type = 'ok') {
+  const el = document.getElementById('log');
+  const line = document.createElement('span');
+  line.className = 'log-' + type;
+  line.textContent = new Date().toLocaleTimeString() + '  ' + msg + '\n';
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── jQuery AJAX helpers ───────────────────────────────────────────────────────
+function getUsers() {
+  log('→ GET /users', 'info');
+  $.ajax({
+    url: BASE + '/users',
+    type: 'GET',
+    dataType: 'json',
+    success: function(data) { log('← ' + data.length + ' users returned'); },
+    error: function(err) { log('✗ ' + err.statusText, 'err'); }
+  });
+}
+
+function createUser() {
+  log('→ POST /users', 'info');
+  $.ajax({
+    url: BASE + '/users',
+    type: 'POST',
+    data: JSON.stringify({ name: 'Test User', email: 'test@example.com', id: 99 }),
+    contentType: 'application/json',
+    dataType: 'json',
+    success: function(data) { log('← Created user id=' + data.id); },
+    error: function(err) { log('✗ ' + err.statusText, 'err'); }
+  });
+}
+
+function getUser(id) {
+  log('→ GET /users/' + id, 'info');
+  $.ajax({
+    url: BASE + '/users/' + id,
+    type: 'GET',
+    dataType: 'json',
+    success: function(data) { log('← Got user: ' + data.name); },
+    error: function(err) { log('✗ ' + err.statusText, 'err'); }
+  });
+}
+
+function deleteUser(id) {
+  log('→ DELETE /users/' + id, 'info');
+  $.ajax({
+    url: BASE + '/users/' + id,
+    type: 'DELETE',
+    success: function() { log('← User ' + id + ' deleted'); },
+    error: function(err) { log('✗ ' + err.statusText, 'err'); }
+  });
+}
+
+function createPost() {
+  log('→ POST /posts', 'info');
+  $.ajax({
+    url: BASE + '/posts',
+    type: 'POST',
+    data: JSON.stringify({ title: 'My Post', body: 'Hello world', userId: 1 }),
+    contentType: 'application/json',
+    dataType: 'json',
+    success: function(data) { log('← Post created id=' + data.id); },
+    error: function(err) { log('✗ ' + err.statusText, 'err'); }
+  });
+}
+
+// Chained: get posts, then get comments for first post
+function loadPostsAndComments() {
+  log('→ GET /posts (then /comments)', 'info');
+  $.ajax({
+    url: BASE + '/posts',
+    type: 'GET',
+    dataType: 'json',
+    success: function(posts) {
+      log('← Got ' + posts.length + ' posts, fetching comments for post 1...');
+      $.ajax({
+        url: BASE + '/posts/1/comments',
+        type: 'GET',
+        dataType: 'json',
+        success: function(comments) { log('← Got ' + comments.length + ' comments'); },
+        error: function(err) { log('✗ ' + err.statusText, 'err'); }
+      });
+    },
+    error: function(err) { log('✗ ' + err.statusText, 'err'); }
+  });
+}
+
+// fetch() API
+function fetchTodos() {
+  log('→ fetch() /todos', 'info');
+  fetch(BASE + '/todos?_limit=5')
+    .then(r => r.json())
+    .then(data => log('← Got ' + data.length + ' todos via fetch()'))
+    .catch(err => log('✗ ' + err.message, 'err'));
+}
+
+// jQuery $.ajax POST
+function jqueryAjax() {
+  log('→ $.ajax POST /posts', 'info');
+  $.ajax({
+    url: BASE + '/posts',
+    type: 'POST',
+    data: {
+      title: 'jQuery Test',
+      body: 'Sent via $.ajax',
+      userId: 1
+    },
+    dataType: 'json',
+    success: function(data) { log('← $.ajax success, id=' + data.id); },
+    error: function(error) { log('✗ ' + error.statusText, 'err'); }
+  });
+}
+</script>
+</body>
+</html>

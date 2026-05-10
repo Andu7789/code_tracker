@@ -4,10 +4,9 @@ const WebSocket = require('ws');
 const CHROME_PORT = 9222;
 const TRACER_PORT = 7923;
 
-// URLs containing any of these patterns will be captured as API nodes.
-// Change to match your backend — e.g. ['.ashx', '/api/'] for a C# backend,
-// or ['post_data'] if your app posts to PHP/ASHX files with that param.
-const CAPTURE_URL_PATTERNS = ['supabase'];
+// Default URL patterns — overridden at runtime by the canvas UI.
+// When the canvas sends an empty list, ALL XHR/Fetch requests are captured.
+const DEFAULT_URL_PATTERNS = ['supabase'];
 
 let canvasClients = new Set();
 let recording = false;
@@ -19,6 +18,7 @@ let requestMap = {}; // CDP requestId → nodeId, for correlating responses
 let cdpWs = null;
 let cmdId = 1;
 let pendingCallbacks = {};
+let activeUrlPatterns = DEFAULT_URL_PATTERNS; // set per-session from canvas
 
 // ── WebSocket server for canvas.html ──────────────────────────────────────────
 const wss = new WebSocket.Server({ port: TRACER_PORT });
@@ -31,7 +31,7 @@ wss.on('connection', (client) => {
   client.on('message', (raw) => {
     try {
       const msg = JSON.parse(raw);
-      if (msg.type === 'startRecording') startRecording(msg.port || null);
+      if (msg.type === 'startRecording') startRecording(msg.port || null, msg.urlPatterns ?? null);
       if (msg.type === 'stopRecording')  stopRecording();
       if (msg.type === 'clearGraph')     broadcast({ type: 'clearGraph' });
     } catch (e) { console.error('[Tracer] bad message', e.message); }
@@ -74,7 +74,7 @@ function cdpSend(method, params = {}, cb = null) {
 }
 
 // ── Start recording ───────────────────────────────────────────────────────────
-async function startRecording(port = null) {
+async function startRecording(port = null, urlPatterns = null) {
   if (recording) return;
 
   try {
@@ -107,6 +107,8 @@ async function startRecording(port = null) {
       callStack = [];
       requestMap = {};
       pendingCallbacks = {};
+      activeUrlPatterns = (urlPatterns && urlPatterns.length > 0) ? urlPatterns : null;
+      console.log('[Tracer] URL filter:', activeUrlPatterns ? activeUrlPatterns.join(', ') : 'all XHR/Fetch');
 
       cdpSend('Runtime.enable');
       cdpSend('Network.enable');
@@ -219,9 +221,16 @@ function handleCDPMessage(msg) {
   if (method === 'Network.requestWillBeSent') {
     const url = params?.request?.url ?? '';
     const reqMethod = params?.request?.method ?? 'GET';
-    const matchesPattern = CAPTURE_URL_PATTERNS.some(p => url.includes(p));
-    if (!matchesPattern) return;
-    if (url.match(/\.(png|jpg|jpeg|gif|webp|svg|ico)(\?|$)/i)) return;
+    const reqType = params?.type ?? ''; // 'XHR', 'Fetch', 'Document', 'Script', etc.
+
+    if (activeUrlPatterns) {
+      // Pattern mode: URL must contain one of the configured strings
+      if (!activeUrlPatterns.some(p => url.includes(p))) return;
+    } else {
+      // Capture-all mode: only XHR and Fetch (skip page loads, scripts, images, etc.)
+      if (reqType !== 'XHR' && reqType !== 'Fetch') return;
+    }
+    if (url.match(/\.(png|jpg|jpeg|gif|webp|svg|ico|css|woff2?)(\?|$)/i)) return;
     if (reqMethod === 'OPTIONS') return;
 
     const nodeId = sessionId + (++nodeCounter);

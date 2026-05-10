@@ -19,6 +19,10 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
 #port-wrap{display:flex;align-items:center;gap:5px;font-size:11px;color:#555}
 #port-input{width:60px;font-size:11px;padding:3px 7px;border-radius:5px;border:1px solid #333;background:#0d1122;color:#ddd;outline:none;text-align:center}
 #port-input:focus{border-color:#555}
+#pat-wrap{display:flex;align-items:center;gap:5px;font-size:11px;color:#555}
+#pat-input{width:180px;font-size:11px;padding:3px 7px;border-radius:5px;border:1px solid #333;background:#0d1122;color:#ddd;outline:none}
+#pat-input:focus{border-color:#555}
+#pat-input::placeholder{color:#444}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 
 #wrap{flex:1;position:relative;overflow:auto}
@@ -86,6 +90,7 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
   <button id="btn-rec" onclick="handleRecord()">⏺ Record</button>
   <button class="bc" onclick="doClear()">↺ Clear</button>
   <span id="port-wrap">port <input id="port-input" type="number" min="1" max="65535" placeholder="auto" title="App localhost port (leave blank to auto-detect)"/></span>
+  <span id="pat-wrap">capture <input id="pat-input" type="text" placeholder="all XHR/fetch" title="URL patterns to capture, comma-separated (e.g. /api, supabase) — blank = all XHR/fetch"/></span>
   <span id="status"><span class="dot" id="dot"></span>Connecting...</span>
 </div>
 
@@ -260,7 +265,10 @@ function handleRecord() {
     const portVal = document.getElementById('port-input').value.trim();
     const port = portVal ? parseInt(portVal, 10) : null;
     if (portVal) localStorage.setItem('ct-port', portVal);
-    ws.send(JSON.stringify({ type: 'startRecording', port }));
+    const patVal = document.getElementById('pat-input').value.trim();
+    const urlPatterns = patVal ? patVal.split(',').map(s => s.trim()).filter(Boolean) : [];
+    localStorage.setItem('ct-patterns', patVal);
+    ws.send(JSON.stringify({ type: 'startRecording', port, urlPatterns }));
   }
 }
 
@@ -685,6 +693,8 @@ function clearSearch() {
 window.addEventListener('resize', redrawEdges);
 const savedPort = localStorage.getItem('ct-port');
 if (savedPort) document.getElementById('port-input').value = savedPort;
+const savedPat = localStorage.getItem('ct-patterns');
+if (savedPat) document.getElementById('pat-input').value = savedPat;
 connect();
 </script>
 </body>

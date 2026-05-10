@@ -27,6 +27,7 @@ wss.on('connection', (client) => {
   canvasClients.add(client);
   console.log(`[Tracer] Canvas connected (${canvasClients.size} clients)`);
   client.send(JSON.stringify({ type: 'recording', value: recording }));
+  client.send(JSON.stringify({ type: 'serverInfo', cwd: process.cwd() }));
 
   client.on('message', (raw) => {
     try {

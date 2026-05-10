@@ -66,7 +66,7 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
 .nstatus{font-size:10px;margin-top:3px}
 .nstatus.ok{color:#4caf50}
 .nstatus.fail{color:#e74c3c;font-weight:600}
-.vsc-link{color:inherit;text-decoration:none}
+.vsc-link{color:inherit;text-decoration:none;cursor:pointer !important}
 .vsc-link:hover{opacity:.75;text-decoration:underline}
 #vsc-wrap{display:flex;align-items:center;gap:5px;font-size:11px;color:#555}
 #vscode-root{width:155px;font-size:11px;padding:3px 7px;border-radius:5px;border:1px solid #333;background:#0d1122;color:#ddd;outline:none}
@@ -255,6 +255,7 @@ function onMsg(m) {
   else if (m.type === 'status')      setStatus(m.message);
   else if (m.type === 'clearGraph')  doClear(false);
   else if (m.type === 'error')       showToast(m.message);
+  else if (m.type === 'serverInfo')   onServerInfo(m);
   else if (m.type === 'nodePayload')  onNodePayload(m);
   else if (m.type === 'nodeResponse') onNodeResponse(m);
   else if (m.type === 'nodeStatus')   onNodeStatus(m);
@@ -367,7 +368,9 @@ function addToGroup(node, gid) {
   const ci = g.childCount++;
   g.children.push(node.id);
   const x = g.x + CX_OFF;
-  const y = g.y + CY_START + ci * CY_STEP;
+  // JS/error nodes get extra vertical gap so they clear API nodes above them
+  const yExtra = (node.kind === 'js' || node.kind === 'error') ? GAP * 2 : 0;
+  const y = g.y + CY_START + ci * CY_STEP + yExtra;
   const el = makeEl(node, x, y);
   if (!g.expanded) el.style.display = 'none';
   el.addEventListener('mousedown', e => {
@@ -577,6 +580,15 @@ function showToast(s) {
   setTimeout(() => t.style.display = 'none', 5000);
 }
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Server info (pre-fill VS Code root with tracer's cwd) ────────────────────
+function onServerInfo(m) {
+  const inp = document.getElementById('vscode-root');
+  if (m.cwd && !localStorage.getItem('ct-vsroot')) {
+    inp.value = m.cwd;
+  }
+  inp.setAttribute('placeholder', m.cwd || 'e.g. C:\\myapp');
+}
 
 // ── Status + timing from Network.responseReceived ────────────────────────────
 function onNodeStatus(m) {

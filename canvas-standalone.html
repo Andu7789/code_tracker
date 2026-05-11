@@ -131,6 +131,8 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
   <input id="excl-input" type="text" placeholder="health-check, ping, heartbeat" title="URL patterns to never capture — comma-separated"/>
   <span style="margin-left:8px">Skip JS functions:</span>
   <input id="skipfn-input" type="text" placeholder="cleanHtml, cleanup" title="JS function names to hide — comma-separated"/>
+  <span style="margin-left:8px">Skip JS files:</span>
+  <input id="skipfile-input" type="text" placeholder="quill, chart.umd" title="JS file names to hide — comma-separated"/>
   <label class="stoggle" title="Skip API calls not triggered by a user click (hides background polling)">
     <input type="checkbox" id="after-click-cb"/> Only capture after click
   </label>
@@ -185,6 +187,17 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
 </div>
 
 <script>
+// ╔══════════════════════════════════════════════════════════════════════════════╗
+// ║  USER CONFIG — edit these once; settings travel with the file               ║
+// ╚══════════════════════════════════════════════════════════════════════════════╝
+const USER_CONFIG = {
+  excludeUrls:     '',        // API URL patterns to never capture  e.g. 'health-check, ping'
+  skipJsFunctions: '',        // JS function names to hide          e.g. 'cleanHtml, debounce'
+  skipJsFiles:     'quill',   // JS file names to hide              e.g. 'quill, chart.umd'
+  onlyAfterClick:  false,     // true = ignore background polling
+};
+// ══════════════════════════════════════════════════════════════════════════════
+
 // ── CDP state ─────────────────────────────────────────────────────────────────
 const CHROME_PORT = 9222;
 let cdpWs = null, cdpCmdId = 1, pendingCallbacks = {}, requestMap = {};
@@ -192,6 +205,7 @@ let callStack = [], nodeCounter = 0, sessionId = 'init', startTime = 0;
 let activeUrlPatterns = null;
 let excludeUrlPatterns = [];
 let userSkipFns = new Set();
+let userSkipFiles = new Set();
 let onlyAfterClick = false;
 let recording = false;
 
@@ -456,18 +470,18 @@ function parseProfile(profile, parentClickId) {
     if (emitted >= 20) return;
     const pn = nodeMap[profNodeId]; if (!pn) return;
     const { functionName, url, lineNumber } = pn.callFrame;
-    const isUser = url && !SKIP_URL.some(s => url.includes(s)) && !SKIP_FN.has(functionName) && !userSkipFns.has(functionName);
+    const fileName = url.split('/').pop().split('?')[0] || '';
+    const isUser = url && !SKIP_URL.some(s => url.includes(s)) && !SKIP_FN.has(functionName) && !userSkipFns.has(functionName) && !Array.from(userSkipFiles).some(s => fileName.toLowerCase().includes(s.toLowerCase()));
     let nextParent = parentCanvasId;
     if (isUser) {
       const key = functionName + '|' + url + '|' + lineNumber;
       if (seenMap.has(key)) { nextParent = seenMap.get(key); }
       else {
         emitted++;
-        const fileName = url.split('/').pop().split('?')[0] || url;
         const line = lineNumber + 1;
         const nodeId = sessionId + (++nodeCounter);
         seenMap.set(key, nodeId);
-        emitNode({ id: nodeId, kind: 'js', label: functionName, file: fileName + ':' + line, fullUrl: url, lineNumber: line, timestamp: Date.now() - startTime, parentId: parentCanvasId });
+        emitNode({ id: nodeId, kind: 'js', label: functionName, file: (fileName||url) + ':' + line, fullUrl: url, lineNumber: line, timestamp: Date.now() - startTime, parentId: parentCanvasId });
         emitEdge({ id: 'e' + nodeId, source: parentCanvasId, target: nodeId, kind: 'js' });
         nextParent = nodeId;
       }
@@ -860,6 +874,10 @@ function applySkipFns(val) {
   userSkipFns = new Set(val.split(',').map(s => s.trim()).filter(Boolean));
   localStorage.setItem('ct-skipfns', val);
 }
+function applySkipFiles(val) {
+  userSkipFiles = new Set(val.split(',').map(s => s.trim()).filter(Boolean));
+  localStorage.setItem('ct-skipfiles', val);
+}
 function applyAfterClick(checked) {
   onlyAfterClick = checked;
   localStorage.setItem('ct-afterclick', checked ? '1' : '');
@@ -872,16 +890,20 @@ const savedPat  = localStorage.getItem('ct-patterns'); if (savedPat) document.ge
 const savedVsr  = localStorage.getItem('ct-vsroot'); if (savedVsr) document.getElementById('vscode-root').value = savedVsr;
 document.getElementById('vscode-root').addEventListener('change', e => localStorage.setItem('ct-vsroot', e.target.value.trim()));
 
-const savedExcl = localStorage.getItem('ct-excl') || '';
-if (savedExcl) { document.getElementById('excl-input').value = savedExcl; applyExclPatterns(savedExcl); }
+const initExcl = localStorage.getItem('ct-excl') ?? USER_CONFIG.excludeUrls;
+document.getElementById('excl-input').value = initExcl; applyExclPatterns(initExcl);
 document.getElementById('excl-input').addEventListener('change', e => applyExclPatterns(e.target.value.trim()));
 
-const savedSkipFns = localStorage.getItem('ct-skipfns') || '';
-if (savedSkipFns) { document.getElementById('skipfn-input').value = savedSkipFns; applySkipFns(savedSkipFns); }
+const initSkipFns = localStorage.getItem('ct-skipfns') ?? USER_CONFIG.skipJsFunctions;
+document.getElementById('skipfn-input').value = initSkipFns; applySkipFns(initSkipFns);
 document.getElementById('skipfn-input').addEventListener('change', e => applySkipFns(e.target.value.trim()));
 
-const savedAfterClick = localStorage.getItem('ct-afterclick') === '1';
-if (savedAfterClick) { document.getElementById('after-click-cb').checked = true; onlyAfterClick = true; }
+const initSkipFiles = localStorage.getItem('ct-skipfiles') ?? USER_CONFIG.skipJsFiles;
+document.getElementById('skipfile-input').value = initSkipFiles; applySkipFiles(initSkipFiles);
+document.getElementById('skipfile-input').addEventListener('change', e => applySkipFiles(e.target.value.trim()));
+
+const initAfterClick = localStorage.getItem('ct-afterclick') !== null ? localStorage.getItem('ct-afterclick') === '1' : USER_CONFIG.onlyAfterClick;
+document.getElementById('after-click-cb').checked = initAfterClick; onlyAfterClick = initAfterClick;
 document.getElementById('after-click-cb').addEventListener('change', e => applyAfterClick(e.target.checked));
 </script>
 </body>

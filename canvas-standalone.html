@@ -125,7 +125,7 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
       <h2>Spider Canvas — Standalone</h2>
       <p>
         Start Chrome with:<br>
-        <code>--remote-debugging-port=9222 --remote-allow-origins=* --user-data-dir=C:\temp\chrome-debug</code><br><br>
+        <code>--remote-debugging-port=9222 --remote-allow-origins=* --disable-web-security --user-data-dir=C:\temp\chrome-debug</code><br><br>
         Open your app in that Chrome window, then click <strong>⏺ Record</strong>
       </p>
     </div>
@@ -263,7 +263,8 @@ async function handleRecord() {
     const target = port
       ? candidates.find(t => t.url?.includes(':' + port))
       : candidates.find(t => t.url?.includes('127.0.0.1')) ||
-        candidates.find(t => t.url?.includes('localhost') && !t.url?.includes('localhost:' + CHROME_PORT));
+        candidates.find(t => t.url?.includes('localhost') && !t.url?.includes('localhost:' + CHROME_PORT)) ||
+        candidates.find(t => t.url?.startsWith('file://') && !t.url?.includes('canvas-standalone.html'));
 
     if (!target) { showToast('No app tab found. Open your app in Chrome first.'); setStatus('No tab found'); return; }
 
@@ -309,7 +310,7 @@ async function handleRecord() {
 
   } catch (err) {
     console.error(err);
-    showToast('Cannot reach Chrome. Launch with: --remote-debugging-port=9222 --remote-allow-origins=*');
+    showToast('Cannot reach Chrome. Launch with: --remote-debugging-port=9222 --remote-allow-origins=* --disable-web-security --user-data-dir=C:\\temp\\chrome-debug');
     setStatus('Connection failed');
   }
 }

@@ -371,7 +371,14 @@ function injectClickTracker() {
   cdpSend('Runtime.evaluate', {
     expression: `(function(){
       if(window.__ct)return;window.__ct=true;
-      function getOC(el){var o=(el.getAttribute&&el.getAttribute('onclick'))||'';var m=o.replace(/^javascript:/i,'').match(/^\s*([\w$.]+)\s*\(/);return m?'['+m[1]+']':'';}
+      function getOC(el){
+        var o=(el.getAttribute&&el.getAttribute('onclick'))||'';
+        var s=o.replace(/^javascript:/i,'');
+        var SKIP=/^(return|void|if|else|function|var|let|const|new|typeof|false|true)$/;
+        var matches=s.match(/\b([\w$.]+)\s*\(/g)||[];
+        for(var i=0;i<matches.length;i++){var fn=matches[i].replace(/[\s(]/g,'');if(!SKIP.test(fn))return'['+fn+']';}
+        return'';
+      }
       function label(el){
         var cur=el;
         for(var i=0;i<10;i++){

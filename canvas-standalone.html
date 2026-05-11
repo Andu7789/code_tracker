@@ -370,7 +370,7 @@ function stopRecording() {
 function injectClickTracker() {
   cdpSend('Runtime.evaluate', {
     expression: `(function(){
-      if(window.__ct)return;window.__ct=true;
+      if(window.__ctH)window.removeEventListener('click',window.__ctH,true);
       function getOC(el){
         var o=(el.getAttribute&&el.getAttribute('onclick'))||'';
         if(!o&&typeof el.onclick==='function')o=el.onclick.toString();
@@ -401,7 +401,8 @@ function injectClickTracker() {
         }
         return String(el.tagName).toLowerCase();
       }
-      window.addEventListener('click',function(e){console.log('[CT]click:'+label(e.target));},true);
+      window.__ctH=function(e){console.log('[CT]click:'+label(e.target));};
+      window.addEventListener('click',window.__ctH,true);
       console.log('[CT]ready:injected');
     })();`,
     awaitPromise: false,

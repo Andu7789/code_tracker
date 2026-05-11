@@ -27,7 +27,7 @@ npm install
 node tracer.js
 ```
 
-**Step 4** — Open `canvas.html` in any browser (double-click it or drag to browser)
+**Step 4** — Open `canvas.html` in any browser (double-click it or DRAG TO BROWSER)
 
 **Step 5** — Click **⏺ Record**, click a button in your app, watch the graph build
 

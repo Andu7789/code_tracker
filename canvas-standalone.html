@@ -40,7 +40,7 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
 .nk{font-size:9px;color:#667;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
 .nline{color:#7ecfb0;font-weight:700;font-size:10px}
 .nl{font-size:13px;font-weight:600;color:#e0e0e0;word-break:break-word;line-height:1.3}
-.nt{font-size:9px;color:#444;margin-top:3px}
+.nt{font-size:9px;color:#444}
 .nh{display:flex;justify-content:space-between;align-items:flex-start;gap:6px}
 .nh>div{min-width:0;flex:1}
 .cb{background:none;border:none;color:#f0b030;cursor:pointer;font-size:14px;padding:0;line-height:1;flex-shrink:0}
@@ -54,9 +54,11 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
 .nbtn:hover{border-color:#7f77dd;color:#c0c0ff}
 .vsc-link{color:inherit;text-decoration:none;cursor:pointer !important}
 .vsc-link:hover{opacity:.75;text-decoration:underline}
-.nact{font-size:9px;padding:1px 4px;border-radius:3px;border:1px solid #333;background:none;color:#444;cursor:pointer;line-height:1.5;flex-shrink:0;margin-top:1px}
-.nact:hover{border-color:#7f77dd;color:#a0a0ff}
-.nact.excl:hover{border-color:#e74c3c;color:#e74c3c}
+.nact{font-size:9px;padding:1px 5px;border-radius:3px;border:none;cursor:pointer;line-height:1.5;flex-shrink:0;font-weight:700}
+.nact.copy{background:#1a2a5a;color:#7f77dd}
+.nact.copy:hover{background:#7f77dd;color:#fff}
+.nact.excl{background:#2a1010;color:#e74c3c}
+.nact.excl:hover{background:#e74c3c;color:#fff}
 
 .fbar{display:flex;align-items:center;gap:6px;padding:5px 16px;background:#12192e;border-bottom:1px solid #0f3460;flex-shrink:0}
 .ft{font-size:11px;padding:3px 10px;border-radius:5px;border:1px solid #333;background:#1a1a3e;color:#888;cursor:pointer;display:flex;align-items:center;gap:5px}
@@ -649,11 +651,11 @@ function makeEl(node, x, y) {
   const nid = node.id;
   let actBtns = '';
   if (node.kind === 'ajax' || node.kind === 'js') {
-    actBtns = `<button class="nact" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();copyNode('${nid}')" title="Copy to clipboard">⎘</button>` +
-              `<button class="nact excl" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();excludeNode('${nid}')" title="Add to exclusions">⊘</button>`;
+    actBtns = `<button class="nact copy" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();copyNode('${nid}')" title="Copy to clipboard">C</button>` +
+              `<button class="nact excl" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();excludeNode('${nid}')" title="Add to exclusions">E</button>`;
   }
 
-  el.innerHTML = '<div class="nh"><div style="min-width:0;flex:1"><div class="nk">' + icon + ' ' + fileHtml + '</div><div class="nl">' + esc(node.label) + '</div></div><div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0;padding-left:4px">' + actBtns + '</div></div><div class="nt">+' + node.timestamp + 'ms</div>';
+  el.innerHTML = '<div class="nh"><div style="min-width:0;flex:1"><div class="nk">' + icon + ' ' + fileHtml + '</div><div class="nl">' + esc(node.label) + '</div></div></div><div style="display:flex;align-items:center;gap:5px;margin-top:4px"><span class="nt">+' + node.timestamp + 'ms</span>' + actBtns + '</div>';
   return el;
 }
 

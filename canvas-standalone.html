@@ -373,6 +373,7 @@ function injectClickTracker() {
       if(window.__ct)return;window.__ct=true;
       function getOC(el){
         var o=(el.getAttribute&&el.getAttribute('onclick'))||'';
+        if(!o&&typeof el.onclick==='function')o=el.onclick.toString();
         var s=o.replace(/^javascript:/i,'');
         var SKIP=/^(return|void|if|else|function|var|let|const|new|typeof|false|true)$/;
         var matches=s.match(/\b([\w$.]+)\s*\(/g)||[];

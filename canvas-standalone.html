@@ -804,7 +804,18 @@ function renderModalTab() {
   document.getElementById('mtab-response').classList.toggle('active', tab === 'response');
   const raw = tab === 'payload' ? (extra.payload ?? '') : (extra.response ?? '');
   let pretty; let isJson = false;
-  try { pretty = JSON.stringify(JSON.parse(raw), null, 2); isJson = true; } catch { pretty = raw; }
+  try {
+    let parsed = JSON.parse(raw);
+    // Unwrap ASP.NET .d wrapper e.g. {"d":"{...}"}
+    if (parsed && typeof parsed.d === 'string') {
+      try { parsed = JSON.parse(parsed.d); } catch {}
+    }
+    // Unwrap double-encoded string
+    if (typeof parsed === 'string') {
+      try { parsed = JSON.parse(parsed); } catch {}
+    }
+    pretty = JSON.stringify(parsed, null, 2); isJson = true;
+  } catch { pretty = raw; }
   const display = (pretty.length > MODAL_LIMIT ? pretty.slice(0, MODAL_LIMIT) : pretty) || (tab === 'payload' ? '(no request body)' : '(empty)');
   const pre = document.getElementById('modal-pre');
   if (isJson) { pre.innerHTML = jsonHighlight(display); } else { pre.textContent = display; }

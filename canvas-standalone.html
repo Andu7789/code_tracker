@@ -105,6 +105,7 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
 #modal-body{flex:1;overflow:auto;padding:10px 14px;display:flex;flex-direction:column;gap:6px;min-height:0}
 #modal-trunc{font-size:11px;color:#776644;font-style:italic;flex-shrink:0;display:none}
 #modal-pre{flex:1;font-size:11px;font-family:'Consolas','Monaco',monospace;color:#c5c8c6;white-space:pre-wrap;word-break:break-all;background:#0d1122;border:1px solid #1a2040;border-radius:6px;padding:10px 12px;overflow:auto;margin:0;min-height:120px}
+.jkey{color:#7f77dd}.jstr{color:#a8d8a8}.jnum{color:#f0b030}.jbool{color:#e94560}.jnull{color:#666}
 </style>
 </head>
 <body>
@@ -787,16 +788,28 @@ function showModal(id, tab) {
   document.getElementById('modal-overlay').style.display = 'block';
   document.getElementById('modal').style.display = 'flex';
 }
+function jsonHighlight(str) {
+  const e = str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return e.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g, m => {
+    let c = 'jnum';
+    if (/^"/.test(m)) c = /:$/.test(m) ? 'jkey' : 'jstr';
+    else if (/true|false/.test(m)) c = 'jbool';
+    else if (/null/.test(m)) c = 'jnull';
+    return '<span class="' + c + '">' + m + '</span>';
+  });
+}
 function renderModalTab() {
   const { id, tab } = modalState; const extra = nodeExtras[id] || {};
   document.getElementById('mtab-payload').classList.toggle('active', tab === 'payload');
   document.getElementById('mtab-response').classList.toggle('active', tab === 'response');
   const raw = tab === 'payload' ? (extra.payload ?? '') : (extra.response ?? '');
-  let pretty; try { pretty = JSON.stringify(JSON.parse(raw), null, 2); } catch { pretty = raw; }
-  const truncated = pretty.length > MODAL_LIMIT;
-  document.getElementById('modal-pre').textContent = (truncated ? pretty.slice(0, MODAL_LIMIT) : pretty) || (tab === 'payload' ? '(no request body)' : '(empty)');
+  let pretty; let isJson = false;
+  try { pretty = JSON.stringify(JSON.parse(raw), null, 2); isJson = true; } catch { pretty = raw; }
+  const display = (pretty.length > MODAL_LIMIT ? pretty.slice(0, MODAL_LIMIT) : pretty) || (tab === 'payload' ? '(no request body)' : '(empty)');
+  const pre = document.getElementById('modal-pre');
+  if (isJson) { pre.innerHTML = jsonHighlight(display); } else { pre.textContent = display; }
   document.getElementById('modal-size').textContent = raw.length ? (raw.length/1024).toFixed(1) + ' KB' : '';
-  document.getElementById('modal-trunc').style.display = truncated ? '' : 'none';
+  document.getElementById('modal-trunc').style.display = pretty.length > MODAL_LIMIT ? '' : 'none';
 }
 function switchTab(tab) { modalState.tab = tab; renderModalTab(); }
 function closeModal() { document.getElementById('modal').style.display = 'none'; document.getElementById('modal-overlay').style.display = 'none'; }

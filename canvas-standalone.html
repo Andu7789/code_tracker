@@ -440,6 +440,23 @@ function handleCDPMessage(msg) {
     return;
   }
 
+  if (method === 'Runtime.exceptionThrown') {
+    const details = params?.exceptionDetails; if (!details) return;
+    const desc = details.exception?.description || details.text || 'Unknown error';
+    const label = desc.split('\n')[0].trim().slice(0, 120);
+    const ESKIP = ['chrome-extension', 'node_modules', '.min.'];
+    const frames = details.stackTrace?.callFrames || [];
+    const topFrame = frames.find(f => f.url && !ESKIP.some(s => f.url.includes(s)));
+    const callerFile = topFrame ? (topFrame.url.split('/').pop().split('?')[0] || '') + ':' + (topFrame.lineNumber + 1) : 'uncaught';
+    const parentId = callStack[callStack.length - 1];
+    const nodeId = sessionId + (++nodeCounter);
+    emitNode({ id: nodeId, kind: 'error', label, file: callerFile,
+               callerUrl: topFrame?.url || null, callerLine: topFrame ? topFrame.lineNumber + 1 : null,
+               timestamp: Date.now() - startTime, parentId });
+    if (parentId) emitEdge({ id: 'e' + nodeId, source: parentId, target: nodeId, kind: 'error' });
+    return;
+  }
+
   if (method === 'Runtime.consoleAPICalled') {
     const type = params?.type ?? '';
     const args = params?.args ?? [];
@@ -650,9 +667,10 @@ function makeEl(node, x, y) {
   // Copy + exclude buttons (ajax and js only)
   const nid = node.id;
   let actBtns = '';
-  if (node.kind === 'ajax' || node.kind === 'js') {
-    actBtns = `<button class="nact copy" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();copyNode('${nid}')" title="Copy to clipboard">C</button>` +
-              `<button class="nact excl" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();excludeNode('${nid}')" title="Add to exclusions">E</button>`;
+  if (node.kind === 'ajax' || node.kind === 'js' || node.kind === 'error') {
+    actBtns = `<button class="nact copy" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();copyNode('${nid}')" title="Copy to clipboard">C</button>`;
+    if (node.kind !== 'error')
+      actBtns += `<button class="nact excl" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();excludeNode('${nid}')" title="Add to exclusions">E</button>`;
   }
 
   el.innerHTML = '<div class="nh"><div style="min-width:0;flex:1"><div class="nk">' + icon + ' ' + fileHtml + '</div><div class="nl">' + esc(node.label) + '</div></div></div><div style="display:flex;align-items:center;gap:5px;margin-top:4px"><span class="nt">+' + node.timestamp + 'ms</span>' + actBtns + '</div>';

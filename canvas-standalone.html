@@ -371,8 +371,28 @@ function injectClickTracker() {
   cdpSend('Runtime.evaluate', {
     expression: `(function(){
       if(window.__ct)return;window.__ct=true;
-      function oc(el){var o=el.getAttribute&&el.getAttribute('onclick');if(!o)return'';var m=o.match(/^\s*([\w$.]+)\s*\(/);return m?'['+m[1]+']':'';}
-      function label(el){var cur=el;for(var i=0;i<10;i++){if(!cur||cur===document.body)break;var v=cur.getAttribute&&cur.getAttribute('data-view');if(v)return'nav: '+v;if(cur.tagName==='BUTTON'||cur.tagName==='A'){var fn=oc(cur);var a=cur.getAttribute('aria-label')||cur.getAttribute('title');if(a)return'btn: '+a.slice(0,30)+(fn?' '+fn:'');var t=Array.from(cur.childNodes).filter(n=>n.nodeType===3).map(n=>n.textContent.trim()).join('').trim();if(t)return(cur.tagName==='BUTTON'?'btn':'link')+': '+t.slice(0,30)+(fn?' '+fn:'');if(cur.id)return(cur.tagName==='BUTTON'?'btn':'link')+': #'+cur.id+(fn?' '+fn:'');if(fn)return fn;}if(cur.id&&cur.id.length<40)return'#'+cur.id;cur=cur.parentElement;}return String(el.tagName).toLowerCase();}
+      function getOC(el){var o=(el.getAttribute&&el.getAttribute('onclick'))||'';var m=o.replace(/^javascript:/i,'').match(/^\s*([\w$.]+)\s*\(/);return m?'['+m[1]+']':'';}
+      function label(el){
+        var cur=el;
+        for(var i=0;i<10;i++){
+          if(!cur||cur===document.body)break;
+          var v=cur.getAttribute&&cur.getAttribute('data-view');if(v)return'nav: '+v;
+          var tag=cur.tagName;
+          var isBtn=tag==='BUTTON'||(tag==='INPUT'&&/^(button|submit)$/i.test(cur.type||''));
+          var fn=getOC(cur);
+          if(isBtn||tag==='A'){
+            var a=cur.getAttribute('aria-label')||cur.getAttribute('title');
+            if(a)return(isBtn?'btn':'link')+': '+a.slice(0,30)+(fn?' '+fn:'');
+            var t=(cur.value||Array.from(cur.childNodes).filter(n=>n.nodeType===3).map(n=>n.textContent.trim()).join('')).trim();
+            if(t)return(isBtn?'btn':'link')+': '+t.slice(0,30)+(fn?' '+fn:'');
+            if(fn)return fn;
+            if(cur.id)return(isBtn?'btn':'link')+': #'+cur.id;
+          } else if(fn){return fn;}
+          if(cur.id&&cur.id.length<40)return'#'+cur.id;
+          cur=cur.parentElement;
+        }
+        return String(el.tagName).toLowerCase();
+      }
       window.addEventListener('click',function(e){console.log('[CT]click:'+label(e.target));},true);
       console.log('[CT]ready:injected');
     })();`,

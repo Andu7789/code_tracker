@@ -62,6 +62,13 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
 #fsearch{font-size:11px;padding:4px 10px;border-radius:5px;border:1px solid #333;background:#0d1122;color:#ddd;width:160px;outline:none}
 #fsearch:focus{border-color:#555}
 
+#settings-bar{display:none;align-items:center;gap:8px;padding:5px 16px;background:#0e1628;border-bottom:1px solid #0f3460;flex-shrink:0;flex-wrap:wrap;font-size:11px;color:#555}
+#excl-input,#skipfn-input{font-size:11px;padding:3px 7px;border-radius:5px;border:1px solid #333;background:#0d1122;color:#ddd;width:200px;outline:none}
+#excl-input:focus,#skipfn-input:focus{border-color:#555}
+#excl-input::placeholder,#skipfn-input::placeholder{color:#3a3a5a}
+.stoggle{display:flex;align-items:center;gap:5px;cursor:pointer;color:#666;user-select:none}
+.stoggle input{cursor:pointer}
+
 .leg{display:flex;gap:16px;padding:5px 16px;background:#16213e;border-top:1px solid #0f3460;font-size:11px;color:#555;flex-shrink:0;align-items:center}
 .ld{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:4px;vertical-align:middle}
 
@@ -101,6 +108,7 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
   <h1>🕷 Code Tracer</h1>
   <button id="btn-rec" onclick="handleRecord()">⏺ Record</button>
   <button class="bc" onclick="doClear()">↺ Clear</button>
+  <button class="bc" onclick="toggleSettings()" title="Filters &amp; blocklists">⚙ Options</button>
   <span id="port-wrap">port <input id="port-input" type="number" min="1" max="65535" placeholder="auto" title="App localhost port"/></span>
   <span id="pat-wrap">capture <input id="pat-input" type="text" placeholder="all XHR/fetch" title="URL patterns, comma-separated — blank = all XHR/fetch"/></span>
   <span id="vsc-wrap">VS Code <input id="vscode-root" type="text" placeholder="e.g. C:\myapp" title="Workspace root for VS Code file links"/></span>
@@ -116,6 +124,16 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
   <span class="fsep"></span>
   <input type="text" id="fsearch" placeholder="Search labels…" oninput="onSearch(this.value)"/>
   <button class="bc" id="fclr" onclick="clearSearch()" style="display:none;font-size:11px;padding:3px 8px">✕</button>
+</div>
+
+<div id="settings-bar">
+  <span>Exclude URLs:</span>
+  <input id="excl-input" type="text" placeholder="health-check, ping, heartbeat" title="URL patterns to never capture — comma-separated"/>
+  <span style="margin-left:8px">Skip JS functions:</span>
+  <input id="skipfn-input" type="text" placeholder="cleanHtml, cleanup" title="JS function names to hide — comma-separated"/>
+  <label class="stoggle" title="Skip API calls not triggered by a user click (hides background polling)">
+    <input type="checkbox" id="after-click-cb"/> Only capture after click
+  </label>
 </div>
 
 <div id="wrap">
@@ -172,6 +190,9 @@ const CHROME_PORT = 9222;
 let cdpWs = null, cdpCmdId = 1, pendingCallbacks = {}, requestMap = {};
 let callStack = [], nodeCounter = 0, sessionId = 'init', startTime = 0;
 let activeUrlPatterns = null;
+let excludeUrlPatterns = [];
+let userSkipFns = new Set();
+let onlyAfterClick = false;
 let recording = false;
 
 // ── Visual state ──────────────────────────────────────────────────────────────
@@ -366,6 +387,8 @@ function handleCDPMessage(msg) {
     else { if (reqType !== 'XHR' && reqType !== 'Fetch') return; }
     if (url.match(/\.(png|jpg|jpeg|gif|webp|svg|ico|css|woff2?)(\?|$)/i)) return;
     if (reqMethod === 'OPTIONS') return;
+    if (excludeUrlPatterns.length && excludeUrlPatterns.some(p => url.toLowerCase().includes(p.toLowerCase()))) return;
+    if (onlyAfterClick && callStack.length === 0) return;
     const nodeId = sessionId + (++nodeCounter);
     const parentId = callStack[callStack.length - 1];
     emitNode({ id: nodeId, kind: 'ajax', label: reqMethod + ' ' + cleanUrl(url), file: 'api', timestamp: Date.now() - startTime, parentId });
@@ -427,13 +450,13 @@ function parseProfile(profile, parentClickId) {
   const nodes = profile.nodes || []; if (!nodes.length) return;
   const nodeMap = {}; nodes.forEach(n => { nodeMap[n.id] = n; });
   const SKIP_FN  = new Set(['(anonymous)','(program)','(idle)','(garbage collector)','']);
-  const SKIP_URL = ['chrome','extension','node_modules','webpack','tracer','canvas'];
+  const SKIP_URL = ['chrome','extension','node_modules','webpack','tracer','canvas','.min.'];
   const seenMap = new Map(); let emitted = 0;
   function traverse(profNodeId, parentCanvasId) {
     if (emitted >= 20) return;
     const pn = nodeMap[profNodeId]; if (!pn) return;
     const { functionName, url, lineNumber } = pn.callFrame;
-    const isUser = url && !SKIP_URL.some(s => url.includes(s)) && !SKIP_FN.has(functionName);
+    const isUser = url && !SKIP_URL.some(s => url.includes(s)) && !SKIP_FN.has(functionName) && !userSkipFns.has(functionName);
     let nextParent = parentCanvasId;
     if (isUser) {
       const key = functionName + '|' + url + '|' + lineNumber;
@@ -824,12 +847,42 @@ function setStatus(s) { document.getElementById('status').innerHTML = '<span cla
 function showToast(s) { const t = document.getElementById('toast'); t.textContent = s; t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 5000); }
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+// ── Settings ──────────────────────────────────────────────────────────────────
+function toggleSettings() {
+  const bar = document.getElementById('settings-bar');
+  bar.style.display = bar.style.display === 'flex' ? 'none' : 'flex';
+}
+function applyExclPatterns(val) {
+  excludeUrlPatterns = val.split(',').map(s => s.trim()).filter(Boolean);
+  localStorage.setItem('ct-excl', val);
+}
+function applySkipFns(val) {
+  userSkipFns = new Set(val.split(',').map(s => s.trim()).filter(Boolean));
+  localStorage.setItem('ct-skipfns', val);
+}
+function applyAfterClick(checked) {
+  onlyAfterClick = checked;
+  localStorage.setItem('ct-afterclick', checked ? '1' : '');
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 window.addEventListener('resize', redrawEdges);
 const savedPort = localStorage.getItem('ct-port'); if (savedPort) document.getElementById('port-input').value = savedPort;
 const savedPat  = localStorage.getItem('ct-patterns'); if (savedPat) document.getElementById('pat-input').value = savedPat;
 const savedVsr  = localStorage.getItem('ct-vsroot'); if (savedVsr) document.getElementById('vscode-root').value = savedVsr;
 document.getElementById('vscode-root').addEventListener('change', e => localStorage.setItem('ct-vsroot', e.target.value.trim()));
+
+const savedExcl = localStorage.getItem('ct-excl') || '';
+if (savedExcl) { document.getElementById('excl-input').value = savedExcl; applyExclPatterns(savedExcl); }
+document.getElementById('excl-input').addEventListener('change', e => applyExclPatterns(e.target.value.trim()));
+
+const savedSkipFns = localStorage.getItem('ct-skipfns') || '';
+if (savedSkipFns) { document.getElementById('skipfn-input').value = savedSkipFns; applySkipFns(savedSkipFns); }
+document.getElementById('skipfn-input').addEventListener('change', e => applySkipFns(e.target.value.trim()));
+
+const savedAfterClick = localStorage.getItem('ct-afterclick') === '1';
+if (savedAfterClick) { document.getElementById('after-click-cb').checked = true; onlyAfterClick = true; }
+document.getElementById('after-click-cb').addEventListener('change', e => applyAfterClick(e.target.checked));
 </script>
 </body>
 </html>

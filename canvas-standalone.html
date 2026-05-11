@@ -54,6 +54,9 @@ button{font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:poin
 .nbtn:hover{border-color:#7f77dd;color:#c0c0ff}
 .vsc-link{color:inherit;text-decoration:none;cursor:pointer !important}
 .vsc-link:hover{opacity:.75;text-decoration:underline}
+.nact{font-size:9px;padding:1px 4px;border-radius:3px;border:1px solid #333;background:none;color:#444;cursor:pointer;line-height:1.5;flex-shrink:0;margin-top:1px}
+.nact:hover{border-color:#7f77dd;color:#a0a0ff}
+.nact.excl:hover{border-color:#e74c3c;color:#e74c3c}
 
 .fbar{display:flex;align-items:center;gap:6px;padding:5px 16px;background:#12192e;border-bottom:1px solid #0f3460;flex-shrink:0}
 .ft{font-size:11px;padding:3px 10px;border-radius:5px;border:1px solid #333;background:#1a1a3e;color:#888;cursor:pointer;display:flex;align-items:center;gap:5px}
@@ -405,7 +408,13 @@ function handleCDPMessage(msg) {
     if (onlyAfterClick && callStack.length === 0) return;
     const nodeId = sessionId + (++nodeCounter);
     const parentId = callStack[callStack.length - 1];
-    emitNode({ id: nodeId, kind: 'ajax', label: reqMethod + ' ' + cleanUrl(url), file: 'api', timestamp: Date.now() - startTime, parentId });
+    const INIT_SKIP = ['chrome-extension', 'node_modules', '.min.', 'webpack'];
+    const callerFrame = (params?.initiator?.stack?.callFrames || [])
+      .find(f => f.url && !INIT_SKIP.some(s => f.url.includes(s)));
+    const callerFile = callerFrame ? (callerFrame.url.split('/').pop().split('?')[0] || '') + ':' + (callerFrame.lineNumber + 1) : null;
+    emitNode({ id: nodeId, kind: 'ajax', label: reqMethod + ' ' + cleanUrl(url), fullUrl: url,
+               file: callerFile || 'api', callerUrl: callerFrame?.url || null, callerLine: callerFrame ? callerFrame.lineNumber + 1 : null,
+               timestamp: Date.now() - startTime, parentId });
     if (parentId) emitEdge({ id: 'e' + nodeId, source: parentId, target: nodeId, kind: 'ajax' });
     requestMap[params.requestId] = { nodeId, timestamp: params.timestamp };
     if (params.request.postData) onNodePayload({ id: nodeId, payload: params.request.postData });
@@ -618,20 +627,33 @@ function makeEl(node, x, y) {
   let fileHtml = ci > 0
     ? esc(rawFile.slice(0, ci)) + '<span class="nline">:' + esc(rawFile.slice(ci+1)) + '</span>'
     : esc(rawFile);
-  if (node.kind === 'js' && node.fullUrl) {
+
+  // VS Code link — ajax uses callerUrl, js uses fullUrl
+  const linkUrl  = node.kind === 'js' ? node.fullUrl : node.callerUrl;
+  const linkLine = node.kind === 'js' ? node.lineNumber : node.callerLine;
+  if (linkUrl) {
     const wsRoot = localStorage.getItem('ct-vsroot') || '';
     if (wsRoot) {
       try {
-        const u = new URL(node.fullUrl);
+        const u = new URL(linkUrl);
         if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') {
           const localPath = wsRoot.replace(/[\\/]$/, '') + u.pathname;
-          const vsUrl = 'vscode://file/' + localPath.replace(/\\/g, '/') + ':' + (node.lineNumber || 1);
+          const vsUrl = 'vscode://file/' + localPath.replace(/\\/g, '/') + ':' + (linkLine || 1);
           fileHtml = `<span class="vsc-link" onclick="event.stopPropagation();window.location.href='${vsUrl.replace(/'/g,"\\'")}'">${fileHtml}</span>`;
         }
       } catch {}
     }
   }
-  el.innerHTML = '<div class="nh"><div style="min-width:0;flex:1"><div class="nk">' + icon + ' ' + fileHtml + '</div><div class="nl">' + esc(node.label) + '</div></div></div><div class="nt">+' + node.timestamp + 'ms</div>';
+
+  // Copy + exclude buttons (ajax and js only)
+  const nid = node.id;
+  let actBtns = '';
+  if (node.kind === 'ajax' || node.kind === 'js') {
+    actBtns = `<button class="nact" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();copyNode('${nid}')" title="Copy to clipboard">⎘</button>` +
+              `<button class="nact excl" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();excludeNode('${nid}')" title="Add to exclusions">⊘</button>`;
+  }
+
+  el.innerHTML = '<div class="nh"><div style="min-width:0;flex:1"><div class="nk">' + icon + ' ' + fileHtml + '</div><div class="nl">' + esc(node.label) + '</div></div><div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0;padding-left:4px">' + actBtns + '</div></div><div class="nt">+' + node.timestamp + 'ms</div>';
   return el;
 }
 
@@ -860,6 +882,37 @@ function setConn(v) { document.getElementById('dot').classList.toggle('on', v); 
 function setStatus(s) { document.getElementById('status').innerHTML = '<span class="dot' + (recording ? ' on' : '') + '" id="dot"></span>' + s; }
 function showToast(s) { const t = document.getElementById('toast'); t.textContent = s; t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 5000); }
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Node actions ──────────────────────────────────────────────────────────────
+function copyNode(id) {
+  const node = nodeData[id]; if (!node) return;
+  const text = node.fullUrl || node.label;
+  navigator.clipboard.writeText(text).then(() => showToast('Copied!'));
+}
+
+function excludeNode(id) {
+  const node = nodeData[id]; if (!node) return;
+  if (node.kind === 'ajax' && node.fullUrl) {
+    try {
+      const u = new URL(node.fullUrl);
+      const parts = u.pathname.split('/').filter(Boolean);
+      const pattern = parts[parts.length - 1] || u.pathname;
+      const cur = document.getElementById('excl-input').value.trim();
+      const newVal = cur ? cur + ', ' + pattern : pattern;
+      document.getElementById('excl-input').value = newVal;
+      applyExclPatterns(newVal);
+      document.getElementById('settings-bar').style.display = 'flex';
+      showToast('Excluded "' + pattern + '" — update USER_CONFIG to persist');
+    } catch {}
+  } else if (node.kind === 'js') {
+    const cur = document.getElementById('skipfn-input').value.trim();
+    const newVal = cur ? cur + ', ' + node.label : node.label;
+    document.getElementById('skipfn-input').value = newVal;
+    applySkipFns(newVal);
+    document.getElementById('settings-bar').style.display = 'flex';
+    showToast('Skipping "' + node.label + '" — update USER_CONFIG to persist');
+  }
+}
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 function toggleSettings() {
